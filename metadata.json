@@ -1,0 +1,6 @@
+{
+  "name": "BimbelSmart - Dashboard Admin Bimbingan Belajar",
+  "description": "Aplikasi web dashboard admin bimbingan belajar mobile-first untuk manajemen siswa, guru, jadwal 4 hari 5 sesi, absensi kehadiran, keuangan, tagihan mingguan, penggajian otomatis, dan cetak slip.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
