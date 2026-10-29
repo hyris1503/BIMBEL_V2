@@ -3,6 +3,8 @@ import {
   GraduationCap,
   Database,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { UserAccount, UserRole } from '../types/bimbel';
 
@@ -12,6 +14,8 @@ interface NavbarProps {
   onOpenSupabaseModal: () => void;
   onLogoClick: () => void;
   supabaseConnected: boolean;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -20,6 +24,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSupabaseModal,
   onLogoClick,
   supabaseConnected,
+  isDarkMode,
+  onToggleDarkMode,
 }) => {
   const getRoleBadge = (role?: UserRole) => {
     switch (role) {
@@ -99,6 +105,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                   supabaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
                 }`}
               />
+            </button>
+
+            {/* Dark Mode Toggle Button */}
+            <button
+              onClick={onToggleDarkMode}
+              title={isDarkMode ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 transition-all shadow-2xs text-slate-700 active:scale-95"
+              aria-label="Toggle Theme"
+            >
+              {isDarkMode ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="hidden sm:inline text-amber-400 font-bold">Terang</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="hidden sm:inline text-indigo-600 font-bold">Gelap</span>
+                </>
+              )}
             </button>
 
             {/* Authenticated User Display */}

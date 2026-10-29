@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   RotateCcw,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { BimbelPricingSettings, UserRole, SessionConfig } from '../../types/bimbel';
 import { formatRupiah } from '../../utils/formatters';
@@ -22,6 +24,8 @@ interface PengaturanModuleProps {
   onSaveSettings: (settings: BimbelPricingSettings) => void;
   onOpenSupabase: () => void;
   userRole: UserRole;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
 export const PengaturanModule: React.FC<PengaturanModuleProps> = ({
@@ -29,6 +33,8 @@ export const PengaturanModule: React.FC<PengaturanModuleProps> = ({
   onSaveSettings,
   onOpenSupabase,
   userRole,
+  isDarkMode,
+  onToggleDarkMode,
 }) => {
   const [formSettings, setFormSettings] = useState<BimbelPricingSettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -101,6 +107,54 @@ export const PengaturanModule: React.FC<PengaturanModuleProps> = ({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tema & Tampilan Antarmuka */}
+        {onToggleDarkMode && (
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <span>Tema & Tampilan Aplikasi</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Sesuaikan tampilan visual dashboard antara mode gelap yang nyaman di mata dan mode terang
+                </p>
+              </div>
+
+              <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isDarkMode) onToggleDarkMode();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                    !isDarkMode
+                      ? 'bg-white text-indigo-600 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Mode Terang</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isDarkMode) onToggleDarkMode();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                    isDarkMode
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Mode Gelap</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Profil Bimbel */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3.5">
           <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">

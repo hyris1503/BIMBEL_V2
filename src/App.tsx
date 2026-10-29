@@ -50,6 +50,25 @@ export default function App() {
   // Loading state for on-demand module fetch
   const [loadingModule, setLoadingModule] = useState<string | null>(null);
 
+  // Theme state (Mode Gelap): defaults to true per user request
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bimbel_theme');
+    if (saved !== null) return saved === 'dark';
+    return true; // default to dark mode
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('bimbel_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('bimbel_theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+
   // Load initial local data and verify auth
   useEffect(() => {
     const loadedUser = BimbelService.getActiveUser();
@@ -429,13 +448,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans pb-20 md:pb-8">
-      {/* Navbar with brand, role switcher, and database status */}
+      {/* Navbar with brand, role switcher, dark mode toggle, and database status */}
       <Navbar
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         onLogoClick={() => setActiveTab('overview')}
         supabaseConnected={supabaseConnected}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       {/* Main Navigation (Tabs for Desktop, Bottom Bar for Mobile) */}
@@ -565,6 +586,8 @@ export default function App() {
             onSaveSettings={handleSaveSettings}
             onOpenSupabase={() => setIsSupabaseModalOpen(true)}
             userRole={role}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={toggleDarkMode}
           />
         )}
       </main>
