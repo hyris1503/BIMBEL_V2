@@ -40,6 +40,7 @@ interface PenggajianModuleProps {
   onUpdateAttendance?: (record: AttendanceRecord) => void;
   userRole: UserRole;
   currentTutorId?: string;
+  currentTutorName?: string;
 }
 
 const MONTHS_LIST = [
@@ -70,6 +71,7 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   onUpdateAttendance,
   userRole,
   currentTutorId,
+  currentTutorName,
 }) => {
   const [activeSlip, setActiveSlip] = useState<SalarySlip | null>(null);
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
@@ -96,7 +98,8 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   // Manual Home Visit honor map per record ID: recordId -> amount
   const [homeVisitManualHonors, setHomeVisitManualHonors] = useState<Record<string, number>>({});
 
-  const canManage = userRole === 'super_admin' || userRole === 'admin';
+  // Super admin exclusive: Only super_admin can calculate, issue, edit status, or disburse salary
+  const canManage = userRole === 'super_admin';
 
   // Derived selected period string (e.g. "Oktober 2026" or "Mei 2026")
   const selectedMonthName =
@@ -147,9 +150,14 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
       s.status === 'paid'
   );
 
+  // Filter slips strictly for guru to their own account
   let displaySlips = slips;
-  if (userRole === 'guru' && currentTutorId) {
-    displaySlips = slips.filter((s) => s.tutorId === currentTutorId);
+  if (userRole === 'guru') {
+    displaySlips = slips.filter(
+      (s) =>
+        (currentTutorId && s.tutorId === currentTutorId) ||
+        (currentTutorName && s.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+    );
   }
 
   const handleOpenGenerator = (tutorId?: string) => {
@@ -331,14 +339,33 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
         </div>
       )}
 
+      {/* Role Notice Banner for Guru */}
+      {userRole === 'guru' && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center space-x-2">
+            <span className="font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md text-[10px]">
+              AKUN GURU
+            </span>
+            <span>
+              Menampilkan arsip slip gaji resmi untuk <strong>{currentTutorName || 'Guru'}</strong>
+            </span>
+          </div>
+          <span className="text-[11px] text-indigo-600 font-semibold">
+            Anda dapat melihat dan mencetak slip gaji bulanan Anda
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-slate-900">
-            Penggajian Guru & Slip Gaji
+            {userRole === 'guru' ? 'Slip Gaji Saya' : 'Penggajian Guru & Slip Gaji'}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Sistem penggajian bulanan otomatis dihitung dari presensi sesi mengajar
+            {userRole === 'guru'
+              ? 'Arsip rincian honor mengajar bulanan dan status pencairan gaji Anda'
+              : 'Sistem penggajian bulanan otomatis dihitung dari presensi sesi mengajar'}
           </p>
         </div>
 
@@ -485,8 +512,16 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
         {displaySlips.length === 0 && (
           <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
             <Banknote className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-semibold text-slate-600">Belum ada slip gaji</p>
-            <p className="mt-0.5">Klik 'Hitung & Buat Slip Gaji' untuk membuat slip gaji guru</p>
+            <p className="font-semibold text-slate-600">
+              {userRole === 'guru'
+                ? 'Belum ada slip gaji yang diterbitkan untuk akun Anda'
+                : 'Belum ada slip gaji'}
+            </p>
+            <p className="mt-0.5">
+              {userRole === 'guru'
+                ? 'Slip honor bulanan Anda akan muncul di sini setelah dihitung dan disetujui oleh Super Admin.'
+                : "Klik 'Hitung & Buat Slip Gaji' untuk membuat slip gaji guru"}
+            </p>
           </div>
         )}
       </div>

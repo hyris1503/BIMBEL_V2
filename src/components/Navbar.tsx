@@ -62,11 +62,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Bimbel Brand - Clicking navigates to Ringkasan */}
+          {/* Logo & Bimbel Brand - Clicking navigates to role home */}
           <div
             onClick={onLogoClick}
             className="flex items-center space-x-3 cursor-pointer select-none group transition-transform active:scale-95"
-            title="Kembali ke Halaman Ringkasan"
+            title="Kembali ke Beranda"
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:from-indigo-700 group-hover:to-blue-600 transition-all">
               <GraduationCap className="w-6 h-6" />

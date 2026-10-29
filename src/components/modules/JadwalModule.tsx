@@ -29,6 +29,7 @@ interface JadwalModuleProps {
   onDeleteSchedule: (scheduleId: string) => void;
   userRole: UserRole;
   currentTutorId?: string;
+  currentTutorName?: string;
 }
 
 export const JadwalModule: React.FC<JadwalModuleProps> = ({
@@ -40,6 +41,7 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
   onDeleteSchedule,
   userRole,
   currentTutorId,
+  currentTutorName,
 }) => {
   const activeSessions = sessions && sessions.length > 0 ? sessions : DEFAULT_SESSIONS;
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Senin');
@@ -138,27 +140,51 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
     }
   };
 
-  // Filter schedules
-  let filteredSchedules = schedules.filter((s) => s.day === selectedDay);
-  if (userRole === 'guru' && currentTutorId) {
-    filteredSchedules = filteredSchedules.filter((s) => s.tutorId === currentTutorId);
-  }
+  // Filter schedules based on role and tutor identity
+  const userSchedules = userRole === 'guru'
+    ? schedules.filter(
+        (s) =>
+          (currentTutorId && s.tutorId === currentTutorId) ||
+          (currentTutorName && s.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+      )
+    : schedules;
+
+  const filteredSchedules = userSchedules.filter((s) => s.day === selectedDay);
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Role Notice Banner for Guru */}
+      {userRole === 'guru' && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center space-x-2">
+            <span className="font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md text-[10px]">
+              AKUN GURU
+            </span>
+            <span>
+              Menampilkan jadwal mengajar pribadi untuk <strong>{currentTutorName || 'Guru Pengajar'}</strong>
+            </span>
+          </div>
+          <span className="text-[11px] text-indigo-600 font-semibold">
+            Hubungi Admin jika terdapat perubahan jadwal
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center space-x-2">
             <h1 className="text-lg sm:text-xl font-bold text-slate-900">
-              Jadwal Sesi Bimbel (Senin - Kamis)
+              {userRole === 'guru' ? 'Jadwal Mengajar Saya (Senin - Kamis)' : 'Jadwal Sesi Bimbel (Senin - Kamis)'}
             </h1>
             <span className="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">
               4 Hari • {activeSessions.length} Sesi
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Jadwal kegiatan belajar mengajar rutin {activeSessions.length} sesi harian untuk semua kelas
+            {userRole === 'guru'
+              ? 'Daftar sesi belajar mengajar dan siswa yang ditugaskan kepada Anda'
+              : `Jadwal kegiatan belajar mengajar rutin ${activeSessions.length} sesi harian untuk semua kelas`}
           </p>
         </div>
 
@@ -176,7 +202,7 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
       {/* Day Selector Tabs (Senin - Kamis) */}
       <div className="grid grid-cols-4 gap-2 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
         {days.map((day) => {
-          const count = schedules.filter((s) => s.day === day).length;
+          const count = userSchedules.filter((s) => s.day === day).length;
           const isSelected = selectedDay === day;
           return (
             <button

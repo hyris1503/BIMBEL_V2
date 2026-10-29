@@ -50,6 +50,7 @@ interface AbsensiModuleProps {
   userRole: UserRole;
   currentUsername: string;
   currentTutorId?: string;
+  currentTutorName?: string;
 }
 
 export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
@@ -63,6 +64,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   userRole,
   currentUsername,
   currentTutorId,
+  currentTutorName,
 }) => {
   const activeSessions = sessions && sessions.length > 0 ? sessions : DEFAULT_SESSIONS;
   const [activeSubTab, setActiveSubTab] = useState<'input' | 'history'>(
@@ -326,10 +328,16 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
     }, 1200);
   };
 
-  // Filter history records
+  // Filter history records based on role and tutor identity
   let filteredHistory = attendanceRecords;
-  if (userRole === 'guru' && effectiveTutorId) {
-    filteredHistory = filteredHistory.filter((r) => r.tutorId === effectiveTutorId);
+  if (userRole === 'guru') {
+    filteredHistory = filteredHistory.filter(
+      (r) =>
+        (effectiveTutorId && r.tutorId === effectiveTutorId) ||
+        (currentTutorId && r.tutorId === currentTutorId) ||
+        (currentTutorName && r.tutorName?.toLowerCase() === currentTutorName.toLowerCase()) ||
+        (currentUsername && r.tutorName?.toLowerCase() === currentUsername.toLowerCase())
+    );
   } else if (tutorFilter !== 'all') {
     filteredHistory = filteredHistory.filter((r) => r.tutorId === tutorFilter);
   }

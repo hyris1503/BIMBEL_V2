@@ -25,6 +25,26 @@ import { KeuanganModule } from './components/modules/KeuanganModule';
 import { TagihanModule } from './components/modules/TagihanModule';
 import { PenggajianModule } from './components/modules/PenggajianModule';
 import { PengaturanModule } from './components/modules/PengaturanModule';
+import { AlertCircle } from 'lucide-react';
+
+// Strict Role-Based Tab Permission Helper
+export const isTabAllowedForRole = (tab: NavTabId, role: UserRole): boolean => {
+  if (role === 'super_admin') return true;
+  if (role === 'admin') {
+    return ['finance', 'billing', 'attendance', 'students', 'schedules'].includes(tab);
+  }
+  if (role === 'guru') {
+    return ['attendance', 'schedules', 'payroll'].includes(tab);
+  }
+  return false;
+};
+
+// Default Home Tab for each user role
+export const getDefaultTabForRole = (role: UserRole): NavTabId => {
+  if (role === 'guru') return 'attendance';
+  if (role === 'admin') return 'finance';
+  return 'overview';
+};
 
 export default function App() {
   // Authentication & User State
@@ -87,12 +107,8 @@ export default function App() {
 
     if (!loadedUser) {
       setIsLoginModalOpen(true);
-    } else if (loadedUser.role === 'guru') {
-      setActiveTab('attendance');
-    } else if (loadedUser.role === 'admin') {
-      setActiveTab('finance');
     } else {
-      setActiveTab('overview');
+      setActiveTab(getDefaultTabForRole(loadedUser.role));
     }
 
     // Connect to Supabase - only fetch settings initially, not all tables
@@ -105,9 +121,11 @@ export default function App() {
     });
   }, []);
 
-  // On-demand fetch strictly for the active module when tab changes
+  // On-demand fetch strictly for the active module when tab changes (only if role is authorized)
   useEffect(() => {
     if (!supabaseConnected) return;
+    const currentRole = currentUser?.role || 'super_admin';
+    if (!isTabAllowedForRole(activeTab, currentRole)) return;
 
     let isMounted = true;
     const fetchCurrentModule = async () => {
@@ -213,21 +231,13 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [activeTab, supabaseConnected]);
+  }, [activeTab, supabaseConnected, currentUser?.role]);
 
   // Role switch handler
   const handleSelectUser = (user: UserAccount) => {
     setCurrentUser(user);
     BimbelService.setActiveUser(user);
-
-    // Switch tab to the relevant default for the role
-    if (user.role === 'guru') {
-      setActiveTab('attendance');
-    } else if (user.role === 'admin') {
-      setActiveTab('finance');
-    } else {
-      setActiveTab('overview');
-    }
+    setActiveTab(getDefaultTabForRole(user.role));
   };
 
   const handleLogout = () => {
@@ -446,6 +456,26 @@ export default function App() {
 
   const role = currentUser?.role || 'super_admin';
 
+  // Guard activeTab against unauthorized access per role
+  useEffect(() => {
+    if (!isTabAllowedForRole(activeTab, role)) {
+      setActiveTab(getDefaultTabForRole(role));
+    }
+  }, [activeTab, role]);
+
+  // Identify current tutor record for guru account
+  const currentTutor = tutors.find(
+    (t) =>
+      (currentUser?.tutorId && t.id === currentUser.tutorId) ||
+      (t.accountUsername &&
+        currentUser?.username &&
+        t.accountUsername.toLowerCase() === currentUser.username.toLowerCase()) ||
+      t.name.toLowerCase() === currentUser?.name?.toLowerCase() ||
+      t.name.toLowerCase() === currentUser?.username?.toLowerCase()
+  );
+  const currentTutorId = currentUser?.tutorId || currentTutor?.id;
+  const currentTutorName = currentTutor?.name || currentUser?.name || currentUser?.username;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans pb-20 md:pb-8">
       {/* Navbar with brand, role switcher, dark mode toggle, and database status */}
@@ -453,7 +483,7 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
-        onLogoClick={() => setActiveTab('overview')}
+        onLogoClick={() => setActiveTab(getDefaultTabForRole(role))}
         supabaseConnected={supabaseConnected}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
@@ -463,13 +493,17 @@ export default function App() {
       <Navigation
         currentRole={role}
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={(tab) => {
+          if (isTabAllowedForRole(tab, role)) {
+            setActiveTab(tab);
+          }
+        }}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6">
-        {/* Module Router based on activeTab */}
-        {activeTab === 'overview' && (
+        {/* Module Router based on activeTab and Strict Role Access */}
+        {activeTab === 'overview' && role === 'super_admin' && (
           <OverviewModule
             currentUser={currentUser}
             students={students}
@@ -478,11 +512,15 @@ export default function App() {
             transactions={transactions}
             bills={bills}
             schedules={schedules}
-            onNavigateTab={(tab) => setActiveTab(tab)}
+            onNavigateTab={(tab) => {
+              if (isTabAllowedForRole(tab, role)) {
+                setActiveTab(tab);
+              }
+            }}
           />
         )}
 
-        {activeTab === 'students' && (
+        {activeTab === 'students' && (role === 'super_admin' || role === 'admin') && (
           <SiswaModule
             students={students}
             onSaveStudent={handleSaveStudent}
@@ -491,7 +529,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'tutors' && (
+        {activeTab === 'tutors' && role === 'super_admin' && (
           <GuruModule
             tutors={tutors}
             onSaveTutor={handleSaveTutor}
@@ -500,30 +538,51 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'schedules' && (
+        {activeTab === 'schedules' && isTabAllowedForRole('schedules', role) && (
           <JadwalModule
-            schedules={schedules}
+            schedules={
+              role === 'guru'
+                ? schedules.filter(
+                    (s) =>
+                      (currentTutorId && s.tutorId === currentTutorId) ||
+                      (currentTutorName &&
+                        s.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+                  )
+                : schedules
+            }
             students={students}
             tutors={tutors}
             sessions={settings.sessions}
             onSaveSchedule={handleSaveSchedule}
             onDeleteSchedule={handleDeleteSchedule}
             userRole={role}
-            currentTutorId={
-              currentUser?.tutorId ||
-              tutors.find(
-                (t) =>
-                  t.name.toLowerCase() === currentUser?.name?.toLowerCase() ||
-                  t.name.toLowerCase() === currentUser?.username?.toLowerCase()
-              )?.id
-            }
+            currentTutorId={currentTutorId}
+            currentTutorName={currentTutorName}
           />
         )}
 
-        {activeTab === 'attendance' && (
+        {activeTab === 'attendance' && isTabAllowedForRole('attendance', role) && (
           <AbsensiModule
-            attendanceRecords={attendanceRecords}
-            schedules={schedules}
+            attendanceRecords={
+              role === 'guru'
+                ? attendanceRecords.filter(
+                    (r) =>
+                      (currentTutorId && r.tutorId === currentTutorId) ||
+                      (currentTutorName &&
+                        r.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+                  )
+                : attendanceRecords
+            }
+            schedules={
+              role === 'guru'
+                ? schedules.filter(
+                    (s) =>
+                      (currentTutorId && s.tutorId === currentTutorId) ||
+                      (currentTutorName &&
+                        s.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+                  )
+                : schedules
+            }
             students={students}
             tutors={tutors}
             sessions={settings.sessions}
@@ -531,18 +590,12 @@ export default function App() {
             onDeleteAttendance={handleDeleteAttendance}
             userRole={role}
             currentUsername={currentUser?.username || 'guru'}
-            currentTutorId={
-              currentUser?.tutorId ||
-              tutors.find(
-                (t) =>
-                  t.name.toLowerCase() === currentUser?.name?.toLowerCase() ||
-                  t.name.toLowerCase() === currentUser?.username?.toLowerCase()
-              )?.id
-            }
+            currentTutorId={currentTutorId}
+            currentTutorName={currentTutorName}
           />
         )}
 
-        {activeTab === 'finance' && (
+        {activeTab === 'finance' && (role === 'super_admin' || role === 'admin') && (
           <KeuanganModule
             transactions={transactions}
             onSaveTransaction={handleSaveTransaction}
@@ -552,7 +605,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'billing' && (
+        {activeTab === 'billing' && (role === 'super_admin' || role === 'admin') && (
           <TagihanModule
             bills={bills}
             students={students}
@@ -565,22 +618,41 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'payroll' && (
+        {activeTab === 'payroll' && (role === 'super_admin' || role === 'guru') && (
           <PenggajianModule
-            slips={slips}
+            slips={
+              role === 'guru'
+                ? slips.filter(
+                    (s) =>
+                      (currentTutorId && s.tutorId === currentTutorId) ||
+                      (currentTutorName &&
+                        s.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+                  )
+                : slips
+            }
             tutors={tutors}
-            attendanceRecords={attendanceRecords}
+            attendanceRecords={
+              role === 'guru'
+                ? attendanceRecords.filter(
+                    (r) =>
+                      (currentTutorId && r.tutorId === currentTutorId) ||
+                      (currentTutorName &&
+                        r.tutorName?.toLowerCase() === currentTutorName.toLowerCase())
+                  )
+                : attendanceRecords
+            }
             settings={settings}
             onSaveSlip={handleSaveSlip}
             onPaySalary={handlePaySalary}
             onDeleteSlip={handleDeleteSlip}
             onUpdateAttendance={handleSaveAttendance}
             userRole={role}
-            currentTutorId={currentUser?.tutorId}
+            currentTutorId={currentTutorId}
+            currentTutorName={currentTutorName}
           />
         )}
 
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && role === 'super_admin' && (
           <PengaturanModule
             settings={settings}
             onSaveSettings={handleSaveSettings}
@@ -589,6 +661,25 @@ export default function App() {
             isDarkMode={isDarkMode}
             onToggleDarkMode={toggleDarkMode}
           />
+        )}
+
+        {/* Fallback if user lands on unauthorized tab */}
+        {!isTabAllowedForRole(activeTab, role) && (
+          <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 p-8 shadow-xs max-w-lg mx-auto">
+            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-100">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">Akses Dibatasi</h2>
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              Halaman ini hanya dapat diakses oleh role yang berwenang. Anda dialihkan ke beranda akun Anda.
+            </p>
+            <button
+              onClick={() => setActiveTab(getDefaultTabForRole(role))}
+              className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+            >
+              Kembali ke Beranda
+            </button>
+          </div>
         )}
       </main>
 
