@@ -286,11 +286,13 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
                 className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-medium focus:border-indigo-500 outline-none"
               >
                 <option value="all">Semua Kategori</option>
-                {[...PEMASUKAN_CATEGORIES, ...PENGELUARAN_CATEGORIES].map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                {Array.from(new Set([...PEMASUKAN_CATEGORIES, ...PENGELUARAN_CATEGORIES])).map(
+                  (c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
@@ -449,12 +451,12 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
                 <div className="space-y-2.5 text-xs max-h-56 overflow-y-auto">
                   {PEMASUKAN_CATEGORIES.map((cat) => {
                     const amount = transactions
-                      .filter((t) => t.category === cat)
+                      .filter((t) => t.type === 'pemasukan' && t.category === cat)
                       .reduce((s, t) => s + t.amount, 0);
                     if (amount === 0) return null;
                     return (
                       <div
-                        key={cat}
+                        key={`income-${cat}`}
                         className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100"
                       >
                         <div className="flex items-center space-x-2">
@@ -469,12 +471,12 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
                   })}
                   {PENGELUARAN_CATEGORIES.map((cat) => {
                     const amount = transactions
-                      .filter((t) => t.category === cat)
+                      .filter((t) => t.type === 'pengeluaran' && t.category === cat)
                       .reduce((s, t) => s + t.amount, 0);
                     if (amount === 0) return null;
                     return (
                       <div
-                        key={cat}
+                        key={`expense-${cat}`}
                         className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100"
                       >
                         <div className="flex items-center space-x-2">

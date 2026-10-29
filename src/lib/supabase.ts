@@ -234,7 +234,29 @@ CREATE TABLE IF NOT EXISTS bimbel_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. ROW LEVEL SECURITY (RLS) - Buka akses anon untuk API Key
+-- 10. TABEL SESI PEMBELAJARAN (Custom Jam & Jumlah Sesi untuk Modul Jadwal & Absensi)
+CREATE TABLE IF NOT EXISTS bimbel_sessions (
+  id INT PRIMARY KEY, -- Nomor sesi: 1, 2, 3, dst.
+  name TEXT NOT NULL, -- Nama sesi, contoh: 'Sesi 1'
+  time TEXT NOT NULL, -- Jam sesi, contoh: '13:30 - 14:45'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed data sesi standar (Sesi 1 s/d 5) jika belum ada
+INSERT INTO bimbel_sessions (id, name, time) VALUES
+  (1, 'Sesi 1', '13:30 - 14:45'),
+  (2, 'Sesi 2', '15:00 - 16:15'),
+  (3, 'Sesi 3', '16:30 - 17:45'),
+  (4, 'Sesi 4', '18:30 - 19:45'),
+  (5, 'Sesi 5', '20:00 - 21:15')
+ON CONFLICT (id) DO NOTHING;
+
+-- Relaksasi batasan session_id pada schedules agar mendukung jumlah sesi dinamis (bisa lebih dari 5)
+ALTER TABLE schedules DROP CONSTRAINT IF EXISTS schedules_session_id_check;
+ALTER TABLE schedules ADD CONSTRAINT schedules_session_id_check CHECK (session_id >= 1);
+
+-- 11. ROW LEVEL SECURITY (RLS) - Buka akses anon untuk API Key
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tutors ENABLE ROW LEVEL SECURITY;
@@ -244,13 +266,14 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_slips ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bimbel_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bimbel_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Buat policy publik anon untuk kemudahan koneksi aplikasi
 DO $$ 
 DECLARE 
   t text;
 BEGIN
-  FOR t IN SELECT unnest(ARRAY['users', 'students', 'tutors', 'schedules', 'attendance', 'transactions', 'salary_slips', 'student_bills', 'bimbel_settings'])
+  FOR t IN SELECT unnest(ARRAY['users', 'students', 'tutors', 'schedules', 'attendance', 'transactions', 'salary_slips', 'student_bills', 'bimbel_settings', 'bimbel_sessions'])
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS "Public access on %I" ON %I;', t, t);
     EXECUTE format('CREATE POLICY "Public access on %I" ON %I FOR ALL USING (true) WITH CHECK (true);', t, t);

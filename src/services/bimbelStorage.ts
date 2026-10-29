@@ -217,9 +217,26 @@ export class BimbelService {
               ? s.sessions
               : settings.sessions || DEFAULT_SESSIONS,
         };
-        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-        return settings;
       }
+
+      // Query dedicated bimbel_sessions table if it exists
+      try {
+        const { data: sessRows } = await client
+          .from('bimbel_sessions')
+          .select('*')
+          .order('id', { ascending: true });
+        if (sessRows && sessRows.length > 0) {
+          settings.sessions = sessRows.map((sr: any) => ({
+            id: Number(sr.id),
+            name: sr.name,
+            time: sr.time,
+          }));
+        }
+      } catch {
+        // Table bimbel_sessions might not yet exist, keep fallback
+      }
+
+      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
       return settings;
     } catch (err) {
       console.error('Error fetching settings:', err);
@@ -873,6 +890,24 @@ export class BimbelService {
           });
         } catch (innerErr) {
           console.error('Supabase save settings error:', innerErr);
+        }
+      }
+
+      // Sync into dedicated bimbel_sessions table if it exists
+      if (settings.sessions && settings.sessions.length > 0) {
+        try {
+          const sessionPayload = settings.sessions.map((sess) => ({
+            id: sess.id,
+            name: sess.name,
+            time: sess.time,
+          }));
+          await client.from('bimbel_sessions').upsert(sessionPayload);
+          const activeIds = settings.sessions.map((s) => s.id);
+          if (activeIds.length > 0) {
+            await client.from('bimbel_sessions').delete().not('id', 'in', `(${activeIds.join(',')})`);
+          }
+        } catch {
+          // Table bimbel_sessions might not yet exist, fallback safely
         }
       }
     }
