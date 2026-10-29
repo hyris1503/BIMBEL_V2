@@ -46,7 +46,7 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
   // Form State
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formCategory, setFormCategory] = useState('Tagihan Bimbel');
-  const [formAmount, setFormAmount] = useState<number>(50000);
+  const [formAmount, setFormAmount] = useState<string>('50000');
   const [formDescription, setFormDescription] = useState('');
   const [formMethod, setFormMethod] = useState<'Tunai' | 'Transfer Bank' | 'QRIS'>('Transfer Bank');
 
@@ -86,7 +86,7 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
     setModalType(type);
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormCategory(type === 'pemasukan' ? 'Tagihan Bimbel' : 'Operasional & ATK');
-    setFormAmount(50000);
+    setFormAmount('50000');
     setFormDescription('');
     setFormMethod('Transfer Bank');
     setIsModalOpen(true);
@@ -94,7 +94,8 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formAmount || formAmount <= 0) {
+    const cleanAmount = Number(formAmount.replace(/\D/g, ''));
+    if (!cleanAmount || cleanAmount <= 0) {
       alert('Nominal harus lebih dari 0');
       return;
     }
@@ -104,7 +105,7 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
       date: formDate,
       type: modalType,
       category: formCategory,
-      amount: Number(formAmount),
+      amount: cleanAmount,
       description: formDescription || `${modalType === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran'} ${formCategory}`,
       paymentMethod: formMethod,
       createdBy: currentUsername,
@@ -561,16 +562,34 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">NOMINAL (RP)</label>
-                <input
-                  type="number"
-                  min="1000"
-                  step="1000"
-                  required
-                  value={formAmount}
-                  onChange={(e) => setFormAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono font-bold text-sm focus:border-indigo-500 outline-none"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700">NOMINAL (RP)</label>
+                  {formAmount && Number(formAmount.replace(/\D/g, '')) > 0 && (
+                    <span className="text-xs font-mono font-bold text-indigo-600">
+                      {formatRupiah(Number(formAmount.replace(/\D/g, '')))}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Contoh: 50000"
+                    required
+                    value={formAmount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setFormAmount(val);
+                    }}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 font-mono font-bold text-sm focus:border-indigo-500 outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Ketik nominal langsung tanpa titik atau simbol (kolom dapat dikosongkan tanpa bug angka 0)
+                </p>
               </div>
 
               <div>

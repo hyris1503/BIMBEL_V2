@@ -11,6 +11,8 @@ import {
   Trash2,
   Edit2,
   AlertCircle,
+  Home,
+  Info,
 } from 'lucide-react';
 import {
   SalarySlip,
@@ -35,6 +37,7 @@ interface PenggajianModuleProps {
   onSaveSlip: (slip: SalarySlip) => void;
   onPaySalary: (slipId: string) => void;
   onDeleteSlip?: (slipId: string) => void;
+  onUpdateAttendance?: (record: AttendanceRecord) => void;
   userRole: UserRole;
   currentTutorId?: string;
 }
@@ -64,6 +67,7 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   onSaveSlip,
   onPaySalary,
   onDeleteSlip,
+  onUpdateAttendance,
   userRole,
   currentTutorId,
 }) => {
@@ -89,6 +93,9 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
 
+  // Manual Home Visit honor map per record ID: recordId -> amount
+  const [homeVisitManualHonors, setHomeVisitManualHonors] = useState<Record<string, number>>({});
+
   const canManage = userRole === 'super_admin' || userRole === 'admin';
 
   // Derived selected period string (e.g. "Oktober 2026" or "Mei 2026")
@@ -113,6 +120,23 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
     );
   });
 
+  const homeVisitMonthlyRecords = tutorMonthlyRecords.filter((a) => a.bimbelType === 'Home Visit');
+  const regularMonthlyRecords = tutorMonthlyRecords.filter((a) => a.bimbelType !== 'Home Visit');
+
+  const getHonorForRecord = (rec: AttendanceRecord) => {
+    if (rec.bimbelType === 'Home Visit') {
+      if (homeVisitManualHonors[rec.id] !== undefined) {
+        return homeVisitManualHonors[rec.id];
+      }
+      return rec.honorEarned > 0 ? rec.honorEarned : 50000;
+    }
+    return rec.honorEarned;
+  };
+
+  const totalHomeVisitHonor = homeVisitMonthlyRecords.reduce((sum, rec) => sum + getHonorForRecord(rec), 0);
+  const totalRegularHonor = regularMonthlyRecords.reduce((sum, rec) => sum + rec.honorEarned, 0);
+  const computedSessionHonorTotal = totalRegularHonor + totalHomeVisitHonor;
+
   const hasTaughtThisPeriod = tutorMonthlyRecords.length > 0;
 
   // Check if slip for selected tutor and period is ALREADY paid
@@ -136,6 +160,16 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
     setCustomTransport(targetTutor?.transport || 0);
     setCustomDeduction(0);
     setNotes('Gaji bulanan');
+
+    // Populate initial manual honor values for Home Visit records
+    const initialHV: Record<string, number> = {};
+    attendanceRecords.forEach((a) => {
+      if (a.bimbelType === 'Home Visit') {
+        initialHV[a.id] = a.honorEarned > 0 ? a.honorEarned : 50000;
+      }
+    });
+    setHomeVisitManualHonors(initialHV);
+
     setIsGeneratorModalOpen(true);
   };
 
@@ -192,13 +226,33 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
       return;
     }
 
-    const breakdown = tutorMonthlyRecords.map((rec) => ({
-      date: rec.date,
-      day: rec.day,
-      sessionId: rec.sessionId,
-      studentCount: rec.attendedStudentIds.length,
-      honor: rec.honorEarned,
-    }));
+    // Sync manual honor for Home Visit attendance records
+    homeVisitMonthlyRecords.forEach((rec) => {
+      const manualHonor = getHonorForRecord(rec);
+      if (onUpdateAttendance) {
+        onUpdateAttendance({
+          ...rec,
+          honorEarned: manualHonor,
+          notes: rec.notes
+            ? (rec.notes.includes('Honor Home Visit:') ? rec.notes : `${rec.notes} | Honor Home Visit: Rp ${manualHonor.toLocaleString('id-ID')}`)
+            : `Honor Home Visit: Rp ${manualHonor.toLocaleString('id-ID')}`,
+        });
+      }
+    });
+
+    const breakdown = tutorMonthlyRecords.map((rec) => {
+      const isHV = rec.bimbelType === 'Home Visit';
+      const honor = getHonorForRecord(rec);
+      return {
+        date: rec.date,
+        day: rec.day,
+        sessionId: rec.sessionId,
+        studentCount: rec.attendedStudentIds.length,
+        honor,
+        bimbelType: rec.bimbelType || 'Reguler',
+        notes: isHV ? 'Home Visit (Honor Manual Admin)' : undefined,
+      };
+    });
 
     const sessionHonorTotal = breakdown.reduce((sum, item) => sum + item.honor, 0);
     const totalStudentsTaught = breakdown.reduce((sum, item) => sum + item.studentCount, 0);
@@ -235,7 +289,7 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
 
     onSaveSlip(newSlip);
     setIsGeneratorModalOpen(false);
-    setSuccessMessage(`Slip gaji untuk ${tutor.name} periode ${selectedPeriod} berhasil dibuat! (${breakdown.length} sesi mengajar)`);
+    setSuccessMessage(`Slip gaji untuk ${tutor.name} periode ${selectedPeriod} berhasil dibuat! (${breakdown.length} sesi mengajar, total: ${formatRupiah(totalSalary)})`);
     setTimeout(() => setSuccessMessage(''), 4000);
   };
 
@@ -513,16 +567,16 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
 
               {/* Status Riwayat Mengajar Guru pada Bulan & Tahun Terpilih */}
               {hasTaughtThisPeriod ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs space-y-1 animate-in fade-in">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs space-y-1.5 animate-in fade-in">
                   <div className="flex items-center space-x-1.5 font-bold text-emerald-900">
                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>Ditemukan Riwayat Mengajar ({selectedPeriod})</span>
                   </div>
                   <p className="text-[11px] text-emerald-700 pl-5.5">
                     Total: <strong>{tutorMonthlyRecords.length} sesi</strong> mengajar (
-                    {tutorMonthlyRecords.reduce((sum, r) => sum + r.attendedStudentIds.length, 0)} anak hadir) • Akumulasi Honor Sesi:{' '}
-                    <strong>
-                      {formatRupiah(tutorMonthlyRecords.reduce((sum, r) => sum + r.honorEarned, 0))}
+                    {regularMonthlyRecords.length} sesi reguler + {homeVisitMonthlyRecords.length} sesi Home Visit) • Estimasi Total Honor Sesi:{' '}
+                    <strong className="text-emerald-900 font-bold">
+                      {formatRupiah(computedSessionHonorTotal)}
                     </strong>
                   </p>
                 </div>
@@ -536,6 +590,74 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                     Guru <strong>{tutors.find((t) => t.id === selectedTutorId)?.name || 'ini'}</strong> belum mengajar pada bulan{' '}
                     <strong>{selectedPeriod}</strong>. Slip gaji <strong>tidak dapat dihitung</strong> karena tidak ada riwayat presensi mengajar pada bulan tersebut.
                   </p>
+                </div>
+              )}
+
+              {/* Input Manual Honor Khusus Home Visit */}
+              {hasTaughtThisPeriod && homeVisitMonthlyRecords.length > 0 && (
+                <div className="p-3.5 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2.5 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 font-bold text-amber-950 text-xs">
+                      <Home className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Input Manual Honor Sesi Home Visit ({homeVisitMonthlyRecords.length} Kunjungan)</span>
+                    </div>
+                    <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                      Khusus Home Visit
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-850 leading-relaxed">
+                    Sesuai instruksi operasional, honor Home Visit tidak menggunakan tarif flat kelas reguler. Admin menginput nominal honor secara manual untuk setiap sesi kunjungan yang telah selesai:
+                  </p>
+
+                  <div className="space-y-2 pt-1 max-h-48 overflow-y-auto pr-1">
+                    {homeVisitMonthlyRecords.map((hv, idx) => {
+                      const currentVal = getHonorForRecord(hv);
+                      return (
+                        <div
+                          key={hv.id}
+                          className="p-2.5 bg-white rounded-xl border border-amber-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        >
+                          <div className="text-[11px]">
+                            <div className="font-bold text-slate-800 flex items-center space-x-1.5">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-[10px]">
+                                Home Visit #{idx + 1}
+                              </span>
+                              <span>{formatDateIndo(hv.date)} ({hv.day})</span>
+                            </div>
+                            <p className="text-slate-500 text-[10px] mt-0.5">
+                              Sesi: {hv.sessionId} • Siswa ID: {hv.attendedStudentIds.join(', ') || '1 Siswa'}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] text-slate-500 font-semibold shrink-0">Honor:</span>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={currentVal === 0 ? '' : currentVal.toLocaleString('id-ID')}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/\D/g, '');
+                                  const num = raw === '' ? 0 : parseInt(raw, 10);
+                                  setHomeVisitManualHonors((prev) => ({
+                                    ...prev,
+                                    [hv.id]: num,
+                                  }));
+                                }}
+                                placeholder="0"
+                                className="w-32 pl-8 pr-2.5 py-1.5 border border-amber-300 rounded-lg text-xs font-mono font-bold text-slate-900 text-right focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none bg-amber-50/20"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[11px] font-bold text-amber-900 flex justify-between pt-1 border-t border-amber-200">
+                    <span>Subtotal Honor Home Visit:</span>
+                    <span>{formatRupiah(totalHomeVisitHonor)}</span>
+                  </div>
                 </div>
               )}
 
@@ -733,12 +855,45 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  <tr>
-                    <td className="py-2 px-3">Honor Presensi Sesi Mengajar</td>
-                    <td className="py-2 px-3 text-right font-mono font-medium">
-                      {formatRupiah(activeSlip.sessionHonorTotal)}
-                    </td>
-                  </tr>
+                  {(() => {
+                    const hvBreakdown = activeSlip.breakdown?.filter((b: any) => b.bimbelType === 'Home Visit');
+                    const regBreakdown = activeSlip.breakdown?.filter((b: any) => b.bimbelType !== 'Home Visit');
+                    const hvTotal = hvBreakdown?.reduce((s, b) => s + b.honor, 0) || 0;
+                    const regTotal = regBreakdown?.reduce((s, b) => s + b.honor, 0) || 0;
+
+                    if (hvBreakdown && hvBreakdown.length > 0) {
+                      return (
+                        <>
+                          <tr>
+                            <td className="py-2 px-3">
+                              Honor Kelas Reguler ({regBreakdown?.length || 0} Sesi)
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-medium">
+                              {formatRupiah(regTotal)}
+                            </td>
+                          </tr>
+                          <tr className="bg-amber-50/60">
+                            <td className="py-2 px-3 text-amber-900 font-semibold flex items-center space-x-1.5">
+                              <Home className="w-3.5 h-3.5 text-amber-600 shrink-0 inline" />
+                              <span>Honor Home Visit ({hvBreakdown.length} Sesi - Manual Admin)</span>
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-amber-900">
+                              {formatRupiah(hvTotal)}
+                            </td>
+                          </tr>
+                        </>
+                      );
+                    }
+
+                    return (
+                      <tr>
+                        <td className="py-2 px-3">Honor Presensi Sesi Mengajar</td>
+                        <td className="py-2 px-3 text-right font-mono font-medium">
+                          {formatRupiah(activeSlip.sessionHonorTotal)}
+                        </td>
+                      </tr>
+                    );
+                  })()}
                   <tr>
                     <td className="py-2 px-3">Tunjangan Jabatan</td>
                     <td className="py-2 px-3 text-right font-mono font-medium">

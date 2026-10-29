@@ -279,7 +279,13 @@ export default function App() {
   };
 
   const handleSaveAttendance = (record: AttendanceRecord) => {
-    const updated = [record, ...attendanceRecords];
+    const exists = attendanceRecords.some((a) => a.id === record.id);
+    let updated: AttendanceRecord[];
+    if (exists) {
+      updated = attendanceRecords.map((a) => (a.id === record.id ? record : a));
+    } else {
+      updated = [record, ...attendanceRecords];
+    }
     setAttendanceRecords(updated);
     BimbelService.saveAttendance(updated);
     BimbelService.saveAttendanceSync(record);
@@ -547,6 +553,7 @@ export default function App() {
             onSaveSlip={handleSaveSlip}
             onPaySalary={handlePaySalary}
             onDeleteSlip={handleDeleteSlip}
+            onUpdateAttendance={handleSaveAttendance}
             userRole={role}
             currentTutorId={currentUser?.tutorId}
           />

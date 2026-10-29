@@ -14,6 +14,9 @@ import {
   AlertCircle,
   Check,
   X,
+  Home,
+  DollarSign,
+  Info,
 } from 'lucide-react';
 import {
   AttendanceRecord,
@@ -93,6 +96,12 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   const [absentStudentIds, setAbsentStudentIds] = useState<string[]>([]);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
 
+  // Mode: Reguler vs Jadwal Khusus Home Visit
+  const [attendanceMode, setAttendanceMode] = useState<'reguler' | 'home_visit'>('reguler');
+  const [homeVisitStudentId, setHomeVisitStudentId] = useState<string>('');
+  const [editingHomeVisitRecord, setEditingHomeVisitRecord] = useState<AttendanceRecord | null>(null);
+  const [manualHonorInput, setManualHonorInput] = useState<string>('50000');
+
   // History Filter
   const [searchFilter, setSearchFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -105,6 +114,11 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
 
   // All schedules belonging strictly to this tutor
   const tutorSchedules = schedules.filter((s) => s.tutorId === effectiveTutorId);
+
+  // Home Visit schedules & candidates
+  const homeVisitSchedules = tutorSchedules.filter((s) => s.bimbelType === 'Home Visit');
+  const homeVisitStudents = students.filter((s) => s.bimbelType === 'Home Visit');
+  const eligibleHomeVisitStudents = homeVisitStudents.length > 0 ? homeVisitStudents : students;
 
   // Schedules matching selected day and tutor
   const matchingSchedules = tutorSchedules.filter((s) => s.day === dayName);
@@ -119,19 +133,37 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
     matchingSchedules[0] ||
     null;
 
-  // Student IDs scheduled for this session
-  const scheduledStudentIds = activeSchedule?.studentIds || [];
+  const isHomeVisitMode = attendanceMode === 'home_visit';
 
-  // When activeSchedule changes or is determined, sync form states and students
+  // Active student for Home Visit mode
+  const activeHomeVisitStudent = isHomeVisitMode
+    ? (homeVisitStudentId
+        ? students.find((s) => s.id === homeVisitStudentId)
+        : (activeSchedule && activeSchedule.studentIds.length > 0
+            ? students.find((s) => s.id === activeSchedule.studentIds[0])
+            : eligibleHomeVisitStudents[0])) || null
+    : null;
+
+  // Student IDs scheduled for this session
+  const scheduledStudentIds = isHomeVisitMode
+    ? (activeHomeVisitStudent ? [activeHomeVisitStudent.id] : [])
+    : (activeSchedule?.studentIds || []);
+
+  // When activeSchedule changes or mode changes, sync form states and students
   useEffect(() => {
-    if (activeSchedule) {
+    if (isHomeVisitMode) {
+      setFormBimbelType('Home Visit');
+      if (activeHomeVisitStudent) {
+        setPresentStudentIds([activeHomeVisitStudent.id]);
+        setAbsentStudentIds([]);
+      }
+    } else if (activeSchedule) {
       if (selectedScheduleId !== activeSchedule.id) {
         setSelectedScheduleId(activeSchedule.id);
       }
       setFormSessionId(activeSchedule.sessionId);
       setFormBimbelType(activeSchedule.bimbelType);
 
-      // Only include students that are in this schedule
       const validPresent = presentStudentIds.filter((id) =>
         activeSchedule.studentIds.includes(id)
       );
@@ -139,7 +171,6 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
         activeSchedule.studentIds.includes(id)
       );
 
-      // If no students yet marked, default to marking all scheduled students as present
       if (validPresent.length === 0 && validAbsent.length === 0) {
         setPresentStudentIds(activeSchedule.studentIds);
         setAbsentStudentIds([]);
@@ -152,7 +183,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
       setPresentStudentIds([]);
       setAbsentStudentIds([]);
     }
-  }, [activeSchedule?.id, formDate, effectiveTutorId]);
+  }, [activeSchedule?.id, formDate, effectiveTutorId, attendanceMode, homeVisitStudentId]);
 
   // Load students from schedule when clicked
   const handleSelectSchedule = (sched: ScheduleItem) => {
@@ -162,6 +193,12 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
     setFormTutorId(sched.tutorId);
     setPresentStudentIds(sched.studentIds);
     setAbsentStudentIds([]);
+    if (sched.bimbelType === 'Home Visit') {
+      setAttendanceMode('home_visit');
+      if (sched.studentIds.length > 0) {
+        setHomeVisitStudentId(sched.studentIds[0]);
+      }
+    }
   };
 
   const toggleStudentAttendance = (studentId: string) => {
@@ -187,85 +224,102 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   };
 
   // Strictly filter student list: ONLY students scheduled for this tutor & session
-  const scheduledStudents = scheduledStudentIds.map((id) => {
-    const found = students.find((s) => s.id === id);
-    if (found) return found;
-    const idx = activeSchedule?.studentIds.indexOf(id) ?? -1;
-    const name =
-      idx >= 0 && activeSchedule?.studentNames?.[idx]
-        ? activeSchedule.studentNames[idx]
-        : id;
-    return {
-      id,
-      name,
-      bimbelType: activeSchedule?.bimbelType || 'Kelompok',
-      parentPhone: '-',
-      grade: '-',
-      registrationDate: '',
-      status: 'active' as const,
-    };
-  });
+  const scheduledStudents = isHomeVisitMode
+    ? (activeHomeVisitStudent ? [activeHomeVisitStudent] : [])
+    : scheduledStudentIds.map((id) => {
+        const found = students.find((s) => s.id === id);
+        if (found) return found;
+        const idx = activeSchedule?.studentIds.indexOf(id) ?? -1;
+        const name =
+          idx >= 0 && activeSchedule?.studentNames?.[idx]
+            ? activeSchedule.studentNames[idx]
+            : id;
+        return {
+          id,
+          name,
+          bimbelType: activeSchedule?.bimbelType || 'Kelompok',
+          parentPhone: '-',
+          grade: '-',
+          registrationDate: '',
+          status: 'active' as const,
+        };
+      });
 
-  // Live honor calculation in background
-  const calculatedHonor = calculateTutorHonor(presentStudentIds.length);
+  // Live honor calculation: Home Visit is 0/manual by admin, regular classes use standard formula
+  const calculatedHonor = isHomeVisitMode ? 0 : calculateTutorHonor(presentStudentIds.length);
 
   const handleSubmitAttendance = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!activeSchedule) {
-      setNotification('Pilih jadwal mengajar yang valid terlebih dahulu.');
-      setTimeout(() => setNotification(null), 3000);
-      return;
-    }
-
-    if (scheduledStudents.length === 0) {
-      setNotification('Jadwal ini belum memiliki siswa terdaftar.');
-      setTimeout(() => setNotification(null), 3000);
-      return;
-    }
-
-    if (presentStudentIds.length === 0 && absentStudentIds.length === 0) {
-      setNotification('Pilih minimal 1 siswa untuk dicatat absensinya.');
-      setTimeout(() => setNotification(null), 3000);
-      return;
-    }
-
     const sessionObj = activeSessions.find((s) => s.id === formSessionId);
-    const attendedNames = presentStudentIds
-      .map((id) => {
-        const found = scheduledStudents.find((s) => s.id === id);
-        return found?.name || id;
-      })
-      .filter(Boolean);
+    let finalAttendedIds = presentStudentIds;
+    let finalAttendedNames: string[] = [];
+    let finalAbsentIds = absentStudentIds;
 
-    const absentNames = absentStudentIds
-      .map((id) => {
-        const found = scheduledStudents.find((s) => s.id === id);
-        return found?.name || id;
-      })
-      .filter(Boolean);
+    if (isHomeVisitMode) {
+      if (!activeHomeVisitStudent) {
+        setNotification('Pilih siswa untuk sesi Home Visit terlebih dahulu.');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+      const isPresent = presentStudentIds.includes(activeHomeVisitStudent.id);
+      finalAttendedIds = isPresent ? [activeHomeVisitStudent.id] : [];
+      finalAttendedNames = isPresent ? [activeHomeVisitStudent.name] : [];
+      finalAbsentIds = isPresent ? [] : [activeHomeVisitStudent.id];
+    } else {
+      if (!activeSchedule) {
+        setNotification('Pilih jadwal mengajar yang valid terlebih dahulu.');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      if (scheduledStudents.length === 0) {
+        setNotification('Jadwal ini belum memiliki siswa terdaftar.');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      if (presentStudentIds.length === 0 && absentStudentIds.length === 0) {
+        setNotification('Pilih minimal 1 siswa untuk dicatat absensinya.');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      finalAttendedNames = presentStudentIds
+        .map((id) => {
+          const found = scheduledStudents.find((s) => s.id === id);
+          return found?.name || id;
+        })
+        .filter(Boolean);
+
+      finalAbsentIds = absentStudentIds;
+    }
 
     const record: AttendanceRecord = {
       id: `ATT-${Date.now().toString().slice(-5)}`,
       date: formDate,
       day: dayName as DayOfWeek,
       sessionId: formSessionId,
-      sessionTime: sessionObj?.time || activeSchedule.sessionTime || '13:30 - 14:45',
-      bimbelType: formBimbelType,
+      sessionTime: sessionObj?.time || activeSchedule?.sessionTime || '13:30 - 14:45',
+      bimbelType: isHomeVisitMode ? 'Home Visit' : formBimbelType,
       tutorId: effectiveTutorId,
       tutorName: selectedTutor?.name || 'Guru Bimbel',
-      attendedStudentIds: presentStudentIds,
-      attendedStudentNames: attendedNames,
-      absentStudentIds: absentStudentIds,
-      notes: formNotes,
-      honorEarned: calculatedHonor,
+      attendedStudentIds: finalAttendedIds,
+      attendedStudentNames: finalAttendedNames,
+      absentStudentIds: finalAbsentIds,
+      notes: formNotes || (isHomeVisitMode ? 'Kunjungan Home Visit selesai dilaksanakan' : ''),
+      honorEarned: isHomeVisitMode ? 0 : calculatedHonor, // Home Visit diinput manual oleh Admin pada saat penggajian
       submittedBy: currentUsername,
       createdAt: new Date().toISOString(),
     };
 
     onSaveAttendance(record);
     setFormNotes('');
-    setNotification('Absensi berhasil disimpan!');
+    setNotification(
+      isHomeVisitMode
+        ? 'Absensi Home Visit berhasil disimpan! Honor sesi akan diinput manual oleh Admin saat pembuatan slip gaji.'
+        : 'Absensi berhasil disimpan!'
+    );
     setTimeout(() => {
       setNotification(null);
       setActiveSubTab('history');
@@ -353,8 +407,106 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
       {/* INPUT ABSENSI TAB (Mobile-First) */}
       {activeSubTab === 'input' && (
         <form onSubmit={handleSubmitAttendance} className="space-y-4 max-w-2xl mx-auto">
-          {/* Quick Schedule Selector: Only shows schedules assigned to this tutor */}
-          {matchingSchedules.length > 0 && (
+          {/* Mode Switcher: Reguler vs Jadwal Khusus Home Visit */}
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setAttendanceMode('reguler');
+                setFormBimbelType('Kelompok');
+                setSelectedScheduleId('');
+              }}
+              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                attendanceMode === 'reguler'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Sesi Kelas Reguler</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAttendanceMode('home_visit');
+                setFormBimbelType('Home Visit');
+                setSelectedScheduleId('');
+                if (homeVisitSchedules.length > 0) {
+                  handleSelectSchedule(homeVisitSchedules[0]);
+                } else if (eligibleHomeVisitStudents.length > 0) {
+                  const firstId = eligibleHomeVisitStudents[0].id;
+                  setHomeVisitStudentId(firstId);
+                  setPresentStudentIds([firstId]);
+                  setAbsentStudentIds([]);
+                }
+              }}
+              className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                attendanceMode === 'home_visit'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Jadwal Khusus Home Visit</span>
+            </button>
+          </div>
+
+          {/* DEDICATED HOME VISIT CARD */}
+          {attendanceMode === 'home_visit' && (
+            <div className="bg-emerald-50/80 border border-emerald-200 p-4 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-emerald-950 font-bold text-xs sm:text-sm">
+                  <Home className="w-4 h-4 text-emerald-700" />
+                  <span>Jadwal Khusus Home Visit (Kunjungan Rumah)</span>
+                </div>
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                  Maks. 1 Siswa
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                Catat presensi setelah kunjungan belajar ke rumah siswa selesai dilakukan oleh guru pengajar.
+              </p>
+
+              {/* If tutor has registered Home Visit schedules */}
+              {homeVisitSchedules.length > 0 && (
+                <div className="pt-2 border-t border-emerald-200/60">
+                  <p className="text-[11px] font-bold text-emerald-900 mb-1.5">
+                    Pilih Dari Jadwal Home Visit Terdaftar:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {homeVisitSchedules.map((sched) => {
+                      const isSel = selectedScheduleId === sched.id;
+                      return (
+                        <button
+                          key={sched.id}
+                          type="button"
+                          onClick={() => handleSelectSchedule(sched)}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            isSel
+                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                              : 'bg-white hover:bg-emerald-100/50 text-slate-800 border-emerald-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold text-xs">
+                            <span>{sched.day} ({sched.sessionTime})</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded ${isSel ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                              Sesi {sched.sessionId}
+                            </span>
+                          </div>
+                          <p className={`text-[11px] mt-0.5 truncate ${isSel ? 'text-emerald-100' : 'text-slate-600'}`}>
+                            Siswa: {sched.studentNames?.join(', ') || '1 Siswa'}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Regular Schedules (Only for reguler mode) */}
+          {attendanceMode === 'reguler' && matchingSchedules.length > 0 && (
             <div className="bg-indigo-50/70 border border-indigo-200/80 p-3 sm:p-4 rounded-2xl">
               <p className="text-xs font-bold text-indigo-900 mb-2 flex items-center space-x-1.5">
                 <Sparkles className="w-4 h-4 text-indigo-600" />
@@ -448,14 +600,15 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                   onChange={(e) => {
                     const newSessionId = Number(e.target.value);
                     setFormSessionId(newSessionId);
-                    // Find if tutor has schedule for this session
-                    const matched = tutorSchedules.find(
-                      (s) => s.day === dayName && s.sessionId === newSessionId
-                    );
-                    if (matched) {
-                      handleSelectSchedule(matched);
-                    } else {
-                      setSelectedScheduleId('');
+                    if (!isHomeVisitMode) {
+                      const matched = tutorSchedules.find(
+                        (s) => s.day === dayName && s.sessionId === newSessionId
+                      );
+                      if (matched) {
+                        handleSelectSchedule(matched);
+                      } else {
+                        setSelectedScheduleId('');
+                      }
                     }
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
@@ -473,10 +626,60 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                 <input
                   type="text"
                   readOnly
-                  value={activeSchedule?.bimbelType || formBimbelType}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-700 outline-none"
+                  value={
+                    attendanceMode === 'home_visit'
+                      ? '🏠 Home Visit (Kunjungan Rumah)'
+                      : (activeSchedule?.bimbelType || formBimbelType)
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-700 outline-none font-semibold"
                 />
               </div>
+
+              {/* Student Picker for Home Visit Mode */}
+              {attendanceMode === 'home_visit' && (
+                <div className="sm:col-span-2 pt-1 border-t border-slate-100">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    PILIH SISWA YANG DIKUNJUNGI (HOME VISIT)
+                  </label>
+                  <select
+                    value={activeHomeVisitStudent?.id || ''}
+                    onChange={(e) => {
+                      const sid = e.target.value;
+                      setHomeVisitStudentId(sid);
+                      setPresentStudentIds([sid]);
+                      setAbsentStudentIds([]);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-emerald-500 outline-none"
+                  >
+                    {students.filter((s) => s.bimbelType === 'Home Visit').length > 0 && (
+                      <optgroup label="Siswa Terdaftar Home Visit">
+                        {students
+                          .filter((s) => s.bimbelType === 'Home Visit')
+                          .map((st) => (
+                            <option key={st.id} value={st.id}>
+                              {st.name} ({st.id}) - Kelas {st.grade}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    <optgroup
+                      label={
+                        students.filter((s) => s.bimbelType === 'Home Visit').length > 0
+                          ? 'Siswa Lainnya'
+                          : 'Daftar Siswa'
+                      }
+                    >
+                      {students
+                        .filter((s) => s.bimbelType !== 'Home Visit')
+                        .map((st) => (
+                          <option key={st.id} value={st.id}>
+                            {st.name} ({st.id}) - {st.bimbelType}
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -485,10 +688,12 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">
-                  Daftar Siswa Terjadwal
+                  {attendanceMode === 'home_visit' ? 'Presensi Siswa Home Visit' : 'Daftar Siswa Terjadwal'}
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Hanya menampilkan siswa yang dijadwalkan pada {selectedTutor?.name || 'Guru'}
+                  {attendanceMode === 'home_visit'
+                    ? 'Konfirmasi kehadiran 1 siswa pada kunjungan rumah ini'
+                    : `Hanya menampilkan siswa yang dijadwalkan pada ${selectedTutor?.name || 'Guru'}`}
                 </p>
               </div>
 
@@ -499,14 +704,14 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                     onClick={handleMarkAllPresent}
                     className="text-[11px] font-bold px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
                   >
-                    Semua Hadir
+                    Hadir
                   </button>
                   <button
                     type="button"
                     onClick={handleMarkAllAbsent}
                     className="text-[11px] font-bold px-2 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
                   >
-                    Semua Tidak Hadir
+                    Tidak Hadir
                   </button>
                   <span className="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
                     {presentStudentIds.length}/{scheduledStudents.length} Hadir
@@ -515,8 +720,8 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               )}
             </div>
 
-            {/* If no schedule matches or schedule has no students */}
-            {(!activeSchedule || scheduledStudents.length === 0) && (
+            {/* If regular mode and no schedule matches */}
+            {attendanceMode === 'reguler' && (!activeSchedule || scheduledStudents.length === 0) && (
               <div className="p-5 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 space-y-3">
                 <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
                   <AlertCircle className="w-5 h-5" />
@@ -563,7 +768,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                   </div>
                 ) : (
                   <p className="text-[11px] text-slate-400 italic">
-                    Belum ada jadwal yang diatur untuk {selectedTutor?.name}. Atur jadwal di menu 'Jadwal'.
+                    Belum ada jadwal yang diatur untuk {selectedTutor?.name}. Atur jadwal di menu 'Jadwal' atau gunakan 'Jadwal Khusus Home Visit'.
                   </p>
                 )}
               </div>
@@ -611,7 +816,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                             : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {isPresent ? 'HADIR' : 'TIDAK HADIR'}
+                        {isPresent ? (attendanceMode === 'home_visit' ? 'HADIR (DIKUNJUNGI)' : 'HADIR') : 'TIDAK HADIR'}
                       </span>
                     </div>
                   );
@@ -626,20 +831,65 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               </label>
               <textarea
                 rows={2}
-                placeholder="Contoh: Latihan Bab 3 Persamaan Kuadrat, seluruh siswa tuntas..."
+                placeholder={
+                  attendanceMode === 'home_visit'
+                    ? 'Contoh: Kunjungan rumah selesai, pembahasan materi IPA Bab 2 tuntas...'
+                    : 'Contoh: Latihan Bab 3 Persamaan Kuadrat, seluruh siswa tuntas...'
+                }
                 value={formNotes}
                 onChange={(e) => setFormNotes(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:border-indigo-500 outline-none resize-none"
               />
             </div>
 
+            {/* Honor Information Preview */}
+            <div
+              className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+                attendanceMode === 'home_visit'
+                  ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                  : 'bg-indigo-50/60 border-indigo-100 text-indigo-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                {attendanceMode === 'home_visit' ? (
+                  <Home className="w-4 h-4 text-amber-600 shrink-0" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                )}
+                <span>
+                  {attendanceMode === 'home_visit' ? (
+                    <>
+                      Honor Sesi Home Visit:{' '}
+                      <strong>Ditetapkan Manual oleh Admin</strong> (diinput saat pembuatan slip gaji)
+                    </>
+                  ) : (
+                    <>
+                      Estimasi Honor Sesi Guru: <strong>{formatRupiah(calculatedHonor)}</strong> ({presentStudentIds.length} Siswa)
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+
             <button
               type="submit"
-              disabled={!activeSchedule || scheduledStudents.length === 0}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center space-x-2"
+              disabled={
+                attendanceMode === 'home_visit'
+                  ? !activeHomeVisitStudent || presentStudentIds.length === 0
+                  : !activeSchedule || scheduledStudents.length === 0
+              }
+              className={`w-full py-3 ${
+                attendanceMode === 'home_visit'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
+                  : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+              } active:scale-[0.99] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Simpan & Catat Absensi</span>
+              <span>
+                {attendanceMode === 'home_visit'
+                  ? 'Simpan Presensi Home Visit'
+                  : 'Simpan & Catat Absensi'}
+              </span>
             </button>
           </div>
         </form>
@@ -706,13 +956,48 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 self-start sm:self-auto">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                      {rec.bimbelType}
+                  <div className="flex items-center space-x-2 self-start sm:self-auto flex-wrap gap-y-1">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        rec.bimbelType === 'Home Visit'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {rec.bimbelType === 'Home Visit' ? '🏠 Home Visit' : rec.bimbelType}
                     </span>
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                      Honor: {formatRupiah(rec.honorEarned)}
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${
+                        rec.bimbelType === 'Home Visit'
+                          ? rec.honorEarned > 0
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      {rec.bimbelType === 'Home Visit'
+                        ? rec.honorEarned > 0
+                          ? `Honor: ${formatRupiah(rec.honorEarned)} (Manual Admin)`
+                          : 'Honor: Menunggu Admin'
+                        : `Honor: ${formatRupiah(rec.honorEarned)}`}
                     </span>
+                    {(userRole === 'super_admin' || userRole === 'admin') &&
+                      rec.bimbelType === 'Home Visit' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHomeVisitRecord(rec);
+                            setManualHonorInput(
+                              rec.honorEarned > 0 ? String(rec.honorEarned) : '50000'
+                            );
+                          }}
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold transition-all flex items-center space-x-1"
+                          title="Input atau ubah honor manual untuk kunjungan Home Visit ini"
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>{rec.honorEarned > 0 ? 'Edit Honor' : 'Input Honor'}</span>
+                        </button>
+                      )}
                     {userRole === 'super_admin' && onDeleteAttendance && (
                       <button
                         onClick={() => setRecToDelete(rec)}
@@ -781,6 +1066,107 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
         }}
         onCancel={() => setRecToDelete(null)}
       />
+
+      {/* MODAL INPUT / EDIT HONOR HOME VISIT (KHUSUS ADMIN) */}
+      {editingHomeVisitRecord && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center space-x-2">
+                <Home className="w-4 h-4 text-emerald-600" />
+                <span className="font-bold text-xs sm:text-sm text-slate-800">
+                  Input / Edit Honor Sesi Home Visit
+                </span>
+              </div>
+              <button
+                onClick={() => setEditingHomeVisitRecord(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const clean = Number(manualHonorInput.replace(/\D/g, ''));
+                if (clean < 0) {
+                  alert('Nominal honor tidak boleh negatif');
+                  return;
+                }
+                const updated: AttendanceRecord = {
+                  ...editingHomeVisitRecord,
+                  honorEarned: clean,
+                };
+                onSaveAttendance(updated);
+                setEditingHomeVisitRecord(null);
+                setNotification(
+                  `Honor Home Visit untuk ${editingHomeVisitRecord.tutorName} berhasil disimpan: ${formatRupiah(clean)}`
+                );
+                setTimeout(() => setNotification(null), 3500);
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1">
+                <p className="font-bold text-emerald-950">
+                  {editingHomeVisitRecord.tutorName}
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  {editingHomeVisitRecord.day}, {formatDateIndo(editingHomeVisitRecord.date)} • {editingHomeVisitRecord.sessionTime}
+                </p>
+                <p className="text-[11px] text-emerald-700">
+                  Siswa yang dikunjungi:{' '}
+                  <strong>{editingHomeVisitRecord.attendedStudentNames.join(', ') || '1 Siswa'}</strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  NOMINAL HONOR GURU UNTUK SESI INI (RP)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Contoh: 75000"
+                    required
+                    value={manualHonorInput}
+                    onChange={(e) => setManualHonorInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 font-mono font-bold text-sm focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                {manualHonorInput && Number(manualHonorInput) > 0 && (
+                  <p className="text-xs font-mono font-bold text-emerald-700 mt-1">
+                    {formatRupiah(Number(manualHonorInput))}
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Honor ini otomatis masuk ke perhitungan pembuatan slip gaji bulanan guru yang bersangkutan.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingHomeVisitRecord(null)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs transition-all"
+                >
+                  Simpan Honor
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -111,6 +111,8 @@ export interface SalarySlip {
     sessionId: number;
     studentCount: number;
     honor: number;
+    bimbelType?: string;
+    notes?: string;
   }>;
 }
 
