@@ -23,6 +23,7 @@ import {
   UserRole,
   DayOfWeek,
   BimbelType,
+  SessionConfig,
 } from '../../types/bimbel';
 import {
   formatRupiah,
@@ -40,6 +41,7 @@ interface AbsensiModuleProps {
   schedules: ScheduleItem[];
   students: Student[];
   tutors: Tutor[];
+  sessions?: SessionConfig[];
   onSaveAttendance: (record: AttendanceRecord) => void;
   onDeleteAttendance?: (recordId: string) => void;
   userRole: UserRole;
@@ -52,12 +54,14 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   schedules,
   students,
   tutors,
+  sessions,
   onSaveAttendance,
   onDeleteAttendance,
   userRole,
   currentUsername,
   currentTutorId,
 }) => {
+  const activeSessions = sessions && sessions.length > 0 ? sessions : DEFAULT_SESSIONS;
   const [activeSubTab, setActiveSubTab] = useState<'input' | 'history'>(
     userRole === 'guru' ? 'input' : 'history'
   );
@@ -226,7 +230,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
       return;
     }
 
-    const sessionObj = DEFAULT_SESSIONS.find((s) => s.id === formSessionId);
+    const sessionObj = activeSessions.find((s) => s.id === formSessionId);
     const attendedNames = presentStudentIds
       .map((id) => {
         const found = scheduledStudents.find((s) => s.id === id);
@@ -456,7 +460,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
                 >
-                  {DEFAULT_SESSIONS.map((s) => (
+                  {activeSessions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.time})
                     </option>

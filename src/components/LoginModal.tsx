@@ -6,41 +6,45 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import { UserAccount } from '../types/bimbel';
+import { BimbelService } from '../services/bimbelStorage';
 
 interface LoginModalProps {
   isOpen: boolean;
   onLoginSuccess: (user: UserAccount) => void;
-  users: UserAccount[];
+  users?: UserAccount[];
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onLoginSuccess,
-  users,
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    const targetUser = users.find(
-      (u) =>
-        u.username.toLowerCase() === username.trim().toLowerCase() &&
-        (u.password === password || password === 'password123' || !u.password)
-    );
-
-    if (targetUser) {
-      onLoginSuccess(targetUser);
-    } else {
-      setError('Username atau password tidak cocok. Silakan periksa kembali akun Anda.');
+    try {
+      const res = await BimbelService.loginWithSupabase(username, password);
+      if (res.success && res.user) {
+        onLoginSuccess(res.user);
+      } else {
+        setError(res.error || 'Username atau password tidak cocok di database Supabase.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Gagal menghubungi server database Supabase.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -114,10 +118,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center space-x-2"
+              disabled={isLoading}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center space-x-2"
             >
-              <span>Masuk</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Memverifikasi Akun...</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         </div>

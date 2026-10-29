@@ -9,9 +9,13 @@ import {
   Sparkles,
   Info,
   Clock,
+  Plus,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
-import { BimbelPricingSettings, UserRole } from '../../types/bimbel';
+import { BimbelPricingSettings, UserRole, SessionConfig } from '../../types/bimbel';
 import { formatRupiah } from '../../utils/formatters';
+import { DEFAULT_SESSIONS } from '../../services/bimbelStorage';
 
 interface PengaturanModuleProps {
   settings: BimbelPricingSettings;
@@ -30,6 +34,41 @@ export const PengaturanModule: React.FC<PengaturanModuleProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const canEdit = userRole === 'super_admin';
+
+  const sessions =
+    formSettings.sessions && formSettings.sessions.length > 0
+      ? formSettings.sessions
+      : DEFAULT_SESSIONS;
+
+  const handleUpdateSession = (index: number, updatedFields: Partial<SessionConfig>) => {
+    const newSessions = [...sessions];
+    newSessions[index] = { ...newSessions[index], ...updatedFields };
+    setFormSettings({ ...formSettings, sessions: newSessions });
+  };
+
+  const handleAddSession = () => {
+    const nextId =
+      sessions.length > 0 ? Math.max(...sessions.map((s) => s.id)) + 1 : 1;
+    const newSession: SessionConfig = {
+      id: nextId,
+      name: `Sesi ${nextId}`,
+      time: '21:30 - 22:45',
+    };
+    setFormSettings({ ...formSettings, sessions: [...sessions, newSession] });
+  };
+
+  const handleRemoveSession = (index: number) => {
+    if (sessions.length <= 1) {
+      alert('Minimal harus ada 1 sesi pembelajaran');
+      return;
+    }
+    const newSessions = sessions.filter((_, i) => i !== index);
+    setFormSettings({ ...formSettings, sessions: newSessions });
+  };
+
+  const handleResetSessions = () => {
+    setFormSettings({ ...formSettings, sessions: DEFAULT_SESSIONS });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,6 +283,111 @@ export const PengaturanModule: React.FC<PengaturanModuleProps> = ({
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-sm focus:border-rose-500 outline-none"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Setup Jumlah Sesi dan Jam Sesi Pembelajaran */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-indigo-600" />
+                <span>Pengaturan Jumlah Sesi & Jam Sesi Pembelajaran</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Atur jumlah sesi harian (Senin - Kamis) dan jam operasional untuk masing-masing sesi
+              </p>
+            </div>
+
+            {canEdit && (
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleResetSessions}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-semibold text-slate-600 flex items-center space-x-1"
+                  title="Kembalikan ke standar 5 sesi"
+                >
+                  <RotateCcw className="w-3 h-3 text-slate-400" />
+                  <span>Standar 5 Sesi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddSession}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold flex items-center space-x-1 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Sesi</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Session Cards List */}
+          <div className="space-y-2.5">
+            {sessions.map((sess, idx) => (
+              <div
+                key={sess.id}
+                className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+              >
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0">
+                    {sess.id}
+                  </div>
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                        NAMA SESI
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!canEdit}
+                        value={sess.name}
+                        onChange={(e) => handleUpdateSession(idx, { name: e.target.value })}
+                        placeholder={`Sesi ${sess.id}`}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-slate-800 outline-none focus:border-indigo-500 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                        JAM SESI (WAKTU MULAI - SELESAI)
+                      </label>
+                      <div className="flex items-center space-x-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <input
+                          type="text"
+                          disabled={!canEdit}
+                          value={sess.time}
+                          onChange={(e) => handleUpdateSession(idx, { time: e.target.value })}
+                          placeholder="Contoh: 13:30 - 14:45"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-mono font-medium text-slate-800 outline-none focus:border-indigo-500 disabled:bg-slate-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {canEdit && (
+                  <div className="flex items-center justify-end sm:justify-center">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSession(idx)}
+                      disabled={sessions.length <= 1}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Hapus sesi ini"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-500 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/60">
+            <span>
+              Total sesi aktif: <strong className="text-indigo-900">{sessions.length} Sesi Pembelajaran</strong>
+            </span>
+            <span>Konfigurasi ini otomatis diterapkan pada Jadwal dan Absensi</span>
           </div>
         </div>
 

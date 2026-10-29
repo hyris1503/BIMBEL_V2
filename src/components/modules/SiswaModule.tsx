@@ -48,10 +48,40 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
 
   const canEdit = userRole === 'super_admin' || userRole === 'admin';
 
+  // Check for duplicate ID
+  const isDuplicateId = students.some(
+    (s) =>
+      s.id.trim().toLowerCase() === formId.trim().toLowerCase() &&
+      (!editingStudent || s.id.trim().toLowerCase() !== editingStudent.id.trim().toLowerCase())
+  );
+
+  // Helper to find lowest available sequential ID (e.g. SIS-001, SIS-002, ...)
+  const getNextAvailableId = (): string => {
+    const existingIds = new Set(students.map((s) => s.id.trim().toUpperCase()));
+    for (let i = 1; i <= 999; i++) {
+      const candidate = `SIS-${String(i).padStart(3, '0')}`;
+      if (!existingIds.has(candidate)) {
+        return candidate;
+      }
+    }
+    return `SIS-${Date.now().toString().slice(-4)}`;
+  };
+
+  // Helper to list unused suggested IDs for dropdown selection
+  const getAvailableIdOptions = (): string[] => {
+    const existingIds = new Set(students.map((s) => s.id.trim().toUpperCase()));
+    const options: string[] = [];
+    for (let i = 1; i <= 200 && options.length < 10; i++) {
+      const candidate = `SIS-${String(i).padStart(3, '0')}`;
+      if (!existingIds.has(candidate)) {
+        options.push(candidate);
+      }
+    }
+    return options;
+  };
+
   const handleOpenAdd = () => {
-    // Generate new ID
-    const nextNum = students.length + 1;
-    const autoId = `SIS-${String(nextNum).padStart(3, '0')}`;
+    const autoId = getNextAvailableId();
     setEditingStudent(null);
     setFormId(autoId);
     setFormName('');
@@ -79,13 +109,17 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDuplicateId) {
+      alert(`ID Siswa "${formId}" sudah terdaftar. Harap gunakan ID lain.`);
+      return;
+    }
     if (!formName.trim() || !formParentPhone.trim()) {
       alert('Nama dan nomor HP wali wajib diisi');
       return;
     }
 
     const payload: Student = {
-      id: formId.trim() || `SIS-${Date.now().toString().slice(-3)}`,
+      id: formId.trim() || getNextAvailableId(),
       name: formName.trim(),
       bimbelType: formBimbelType,
       parentPhone: formParentPhone.trim(),
@@ -291,30 +325,75 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
             </div>
 
             <form onSubmit={handleSave} className="p-5 space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">ID SISWA</label>
-                  <input
-                    type="text"
-                    required
-                    value={formId}
-                    onChange={(e) => setFormId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                  />
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-semibold text-slate-700">ID SISWA</label>
+                      {!editingStudent && (
+                        <button
+                          type="button"
+                          onClick={() => setFormId(getNextAvailableId())}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold"
+                        >
+                          ⚡ Auto ID
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={formId}
+                      onChange={(e) => setFormId(e.target.value.toUpperCase())}
+                      className={`w-full px-3 py-2 rounded-xl border font-mono font-medium outline-none transition-all ${
+                        isDuplicateId
+                          ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:ring-2 focus:ring-rose-200'
+                          : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">JENIS BIMBEL</label>
+                    <select
+                      value={formBimbelType}
+                      onChange={(e) => setFormBimbelType(e.target.value as BimbelType)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
+                    >
+                      <option value="Kelompok">Kelompok (Maks 6)</option>
+                      <option value="Privat 3">Privat 3 (Maks 3)</option>
+                      <option value="Privat 1">Privat 1</option>
+                      <option value="Home Visit">Home Visit</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">JENIS BIMBEL</label>
-                  <select
-                    value={formBimbelType}
-                    onChange={(e) => setFormBimbelType(e.target.value as BimbelType)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
-                  >
-                    <option value="Kelompok">Kelompok (Maks 6)</option>
-                    <option value="Privat 3">Privat 3 (Maks 3)</option>
-                    <option value="Privat 1">Privat 1</option>
-                    <option value="Home Visit">Home Visit</option>
-                  </select>
-                </div>
+
+                {/* Dropdown helper for unused IDs without typing */}
+                {!editingStudent && (
+                  <div className="flex items-center space-x-2 pt-0.5">
+                    <span className="text-[11px] text-slate-400">Atau pilih ID:</span>
+                    <select
+                      value={formId}
+                      onChange={(e) => {
+                        if (e.target.value) setFormId(e.target.value);
+                      }}
+                      className="px-2 py-1 text-[11px] rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-mono outline-none"
+                    >
+                      <option value="">-- Dropdown ID Tersedia --</option>
+                      {getAvailableIdOptions().map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt} (Tersedia)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Duplicate ID Warning Message */}
+                {isDuplicateId && (
+                  <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-[11px] flex items-center space-x-1.5 font-medium animate-in fade-in duration-150">
+                    <span>⚠️ ID Siswa <strong>"{formId}"</strong> sudah digunakan! Tombol simpan dinonaktifkan.</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -398,7 +477,13 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm"
+                  disabled={isDuplicateId || !formName.trim() || !formParentPhone.trim()}
+                  className={`px-5 py-2 rounded-xl font-bold text-xs transition-all ${
+                    isDuplicateId || !formName.trim() || !formParentPhone.trim()
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                  }`}
+                  title={isDuplicateId ? 'ID Siswa sudah ada, tidak dapat klik simpan!' : 'Simpan data siswa'}
                 >
                   Simpan Siswa
                 </button>

@@ -47,7 +47,10 @@ export default function App() {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<NavTabId>('overview');
 
-  // Load initial data and sync with Supabase
+  // Loading state for on-demand module fetch
+  const [loadingModule, setLoadingModule] = useState<string | null>(null);
+
+  // Load initial local data and verify auth
   useEffect(() => {
     const loadedUser = BimbelService.getActiveUser();
     const loadedUsers = BimbelService.getUsers();
@@ -73,25 +76,125 @@ export default function App() {
       setActiveTab('overview');
     }
 
-    // Connect & Sync with Supabase
+    // Connect to Supabase - only fetch settings initially, not all tables
     BimbelService.testSupabaseConnection().then(async (res) => {
       setSupabaseConnected(res.success);
       if (res.success) {
-        const synced = await BimbelService.syncAllFromSupabase();
-        if (synced) {
-          setUsers(synced.users);
-          setStudents(synced.students);
-          setTutors(synced.tutors);
-          setSchedules(synced.schedules);
-          setAttendanceRecords(synced.attendance);
-          setTransactions(synced.transactions);
-          setBills(synced.bills);
-          setSlips(synced.slips);
-          setSettings(synced.settings);
-        }
+        const syncedSettings = await BimbelService.fetchSettingsFromSupabase();
+        if (syncedSettings) setSettings(syncedSettings);
       }
     });
   }, []);
+
+  // On-demand fetch strictly for the active module when tab changes
+  useEffect(() => {
+    if (!supabaseConnected) return;
+
+    let isMounted = true;
+    const fetchCurrentModule = async () => {
+      setLoadingModule(activeTab);
+      try {
+        switch (activeTab) {
+          case 'overview': {
+            // Summary for overview only
+            const [trxData, stData, tutData] = await Promise.all([
+              BimbelService.fetchTransactionsFromSupabase(),
+              BimbelService.fetchStudentsFromSupabase(),
+              BimbelService.fetchTutorsFromSupabase(),
+            ]);
+            if (!isMounted) return;
+            if (trxData) setTransactions(trxData);
+            if (stData) setStudents(stData);
+            if (tutData) setTutors(tutData);
+            break;
+          }
+          case 'students': {
+            const stData = await BimbelService.fetchStudentsFromSupabase();
+            if (!isMounted) return;
+            if (stData) setStudents(stData);
+            break;
+          }
+          case 'tutors': {
+            const tutData = await BimbelService.fetchTutorsFromSupabase();
+            if (!isMounted) return;
+            if (tutData) setTutors(tutData);
+            break;
+          }
+          case 'schedules': {
+            const [scData, tutData, stData] = await Promise.all([
+              BimbelService.fetchSchedulesFromSupabase(),
+              BimbelService.fetchTutorsFromSupabase(),
+              BimbelService.fetchStudentsFromSupabase(),
+            ]);
+            if (!isMounted) return;
+            if (scData) setSchedules(scData);
+            if (tutData) setTutors(tutData);
+            if (stData) setStudents(stData);
+            break;
+          }
+          case 'attendance': {
+            const [attData, scData, tutData, stData] = await Promise.all([
+              BimbelService.fetchAttendanceFromSupabase(),
+              BimbelService.fetchSchedulesFromSupabase(),
+              BimbelService.fetchTutorsFromSupabase(),
+              BimbelService.fetchStudentsFromSupabase(),
+            ]);
+            if (!isMounted) return;
+            if (attData) setAttendanceRecords(attData);
+            if (scData) setSchedules(scData);
+            if (tutData) setTutors(tutData);
+            if (stData) setStudents(stData);
+            break;
+          }
+          case 'finance': {
+            const trxData = await BimbelService.fetchTransactionsFromSupabase();
+            if (!isMounted) return;
+            if (trxData) setTransactions(trxData);
+            break;
+          }
+          case 'billing': {
+            const [billsData, stData, attData] = await Promise.all([
+              BimbelService.fetchBillsFromSupabase(),
+              BimbelService.fetchStudentsFromSupabase(),
+              BimbelService.fetchAttendanceFromSupabase(),
+            ]);
+            if (!isMounted) return;
+            if (billsData) setBills(billsData);
+            if (stData) setStudents(stData);
+            if (attData) setAttendanceRecords(attData);
+            break;
+          }
+          case 'payroll': {
+            const [slipsData, tutData, attData] = await Promise.all([
+              BimbelService.fetchSlipsFromSupabase(),
+              BimbelService.fetchTutorsFromSupabase(),
+              BimbelService.fetchAttendanceFromSupabase(),
+            ]);
+            if (!isMounted) return;
+            if (slipsData) setSlips(slipsData);
+            if (tutData) setTutors(tutData);
+            if (attData) setAttendanceRecords(attData);
+            break;
+          }
+          case 'settings': {
+            const settData = await BimbelService.fetchSettingsFromSupabase();
+            if (!isMounted) return;
+            if (settData) setSettings(settData);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error(`Error loading data for module ${activeTab}:`, err);
+      } finally {
+        if (isMounted) setLoadingModule(null);
+      }
+    };
+
+    fetchCurrentModule();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, supabaseConnected]);
 
   // Role switch handler
   const handleSelectUser = (user: UserAccount) => {
@@ -250,6 +353,13 @@ export default function App() {
     handleSaveTransaction(newTrx);
   };
 
+  const handleDeleteBill = (billId: string) => {
+    const updated = bills.filter((b) => b.id !== billId);
+    setBills(updated);
+    BimbelService.saveBills(updated);
+    BimbelService.deleteBillSync(billId);
+  };
+
   const handleSaveSlip = (slip: SalarySlip) => {
     const exists = slips.some((s) => s.id === slip.id);
     let updated: SalarySlip[];
@@ -261,6 +371,13 @@ export default function App() {
     setSlips(updated);
     BimbelService.saveSlips(updated);
     BimbelService.saveSalarySlipSync(slip);
+  };
+
+  const handleDeleteSlip = (slipId: string) => {
+    const updated = slips.filter((s) => s.id !== slipId);
+    setSlips(updated);
+    BimbelService.saveSlips(updated);
+    BimbelService.deleteSalarySlipSync(slipId);
   };
 
   const handlePaySalary = (slipId: string) => {
@@ -361,6 +478,7 @@ export default function App() {
             schedules={schedules}
             students={students}
             tutors={tutors}
+            sessions={settings.sessions}
             onSaveSchedule={handleSaveSchedule}
             onDeleteSchedule={handleDeleteSchedule}
             userRole={role}
@@ -381,6 +499,7 @@ export default function App() {
             schedules={schedules}
             students={students}
             tutors={tutors}
+            sessions={settings.sessions}
             onSaveAttendance={handleSaveAttendance}
             onDeleteAttendance={handleDeleteAttendance}
             userRole={role}
@@ -414,6 +533,7 @@ export default function App() {
             settings={settings}
             onSaveBill={handleSaveBill}
             onMarkPaid={handleMarkBillPaid}
+            onDeleteBill={handleDeleteBill}
             userRole={role}
           />
         )}
@@ -426,6 +546,7 @@ export default function App() {
             settings={settings}
             onSaveSlip={handleSaveSlip}
             onPaySalary={handlePaySalary}
+            onDeleteSlip={handleDeleteSlip}
             userRole={role}
             currentTutorId={currentUser?.tutorId}
           />
@@ -440,6 +561,14 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Floating on-demand module sync indicator */}
+      {loadingModule && (
+        <div className="fixed bottom-16 md:bottom-5 right-4 z-40 bg-slate-900/90 backdrop-blur-md text-white text-[11px] px-3.5 py-2 rounded-full shadow-xl flex items-center space-x-2 border border-slate-700">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span className="font-medium">Memuat data modul {loadingModule}...</span>
+        </div>
+      )}
 
       {/* Supabase Connection & SQL Schema Modal */}
       <SupabaseModal

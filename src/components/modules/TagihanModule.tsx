@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Edit2,
 } from 'lucide-react';
 import {
   StudentBill,
@@ -58,7 +59,41 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
   const [selectedMethod, setSelectedMethod] = useState<'Transfer Bank' | 'Tunai' | 'QRIS'>('Transfer Bank');
   const [billToDelete, setBillToDelete] = useState<StudentBill | null>(null);
 
+  // Edit status modal state
+  const [billToEdit, setBillToEdit] = useState<StudentBill | null>(null);
+  const [editStatus, setEditStatus] = useState<'unpaid' | 'paid'>('unpaid');
+  const [editPaidDate, setEditPaidDate] = useState<string>('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<string>('Transfer Bank');
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editNotes, setEditNotes] = useState<string>('');
+
   const canManage = userRole === 'super_admin' || userRole === 'admin';
+
+  const handleOpenEditBill = (bill: StudentBill) => {
+    setBillToEdit(bill);
+    setEditStatus(bill.status);
+    setEditPaidDate(bill.paidAt ? bill.paidAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+    setEditPaymentMethod(bill.paymentMethod || 'Transfer Bank');
+    setEditAmount(bill.totalAmount);
+    setEditNotes(bill.notes || '');
+  };
+
+  const handleSaveEditBill = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billToEdit) return;
+
+    const updated: StudentBill = {
+      ...billToEdit,
+      status: editStatus,
+      paidAt: editStatus === 'paid' ? (editPaidDate ? new Date(editPaidDate).toISOString() : new Date().toISOString()) : undefined,
+      paymentMethod: editStatus === 'paid' ? editPaymentMethod : undefined,
+      totalAmount: editAmount,
+      notes: editNotes,
+    };
+
+    onSaveBill(updated);
+    setBillToEdit(null);
+  };
 
   // Stats
   const unpaidCount = bills.filter((b) => b.status === 'unpaid').length;
@@ -349,6 +384,17 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
                   <MessageCircle className="w-4 h-4" />
                 </a>
 
+                {/* Edit Bill Status Button */}
+                {canManage && (
+                  <button
+                    onClick={() => handleOpenEditBill(bill)}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                    title="Edit Status & Data Tagihan"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Delete button */}
                 {canManage && onDeleteBill && (
                   <button
@@ -488,6 +534,12 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
                   KUITANSI PEMBAYARAN BIMBEL MINGGUAN
                 </h3>
                 <p className="text-[11px] text-slate-500">{activeSlip.weekPeriod}</p>
+                <div className="mt-1.5 inline-flex items-center space-x-1.5 px-3 py-1 bg-slate-100/90 rounded-full text-[10px] text-slate-600 border border-slate-200/80 shadow-2xs">
+                  <Clock className="w-3 h-3 text-indigo-600" />
+                  <span>
+                    Tanggal Cetak Kuitansi: <strong className="text-slate-800">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> pukul <strong className="text-slate-800">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</strong>
+                  </span>
+                </div>
               </div>
 
               {/* Student info */}
@@ -638,6 +690,105 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
           </div>
         </div>
       )}
+      {/* MODAL EDIT STATUS TAGIHAN SISWA */}
+      {billToEdit && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Edit Status Tagihan Siswa
+                </h3>
+                <p className="text-[11px] text-slate-500">{billToEdit.studentName} • {billToEdit.receiptNumber}</p>
+              </div>
+              <button
+                onClick={() => setBillToEdit(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditBill} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">STATUS PEMBAYARAN</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as 'unpaid' | 'paid')}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500"
+                >
+                  <option value="unpaid">Menunggu Pembayaran (Belum Bayar)</option>
+                  <option value="paid">Lunas Terbayar</option>
+                </select>
+              </div>
+
+              {editStatus === 'paid' && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl">
+                  <div>
+                    <label className="block font-semibold text-emerald-800 mb-1">TANGGAL LUNAS</label>
+                    <input
+                      type="date"
+                      value={editPaidDate}
+                      onChange={(e) => setEditPaidDate(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 bg-white text-slate-800 font-medium outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-emerald-800 mb-1">METODE BAYAR</label>
+                    <select
+                      value={editPaymentMethod}
+                      onChange={(e) => setEditPaymentMethod(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 bg-white text-slate-800 font-medium outline-none"
+                    >
+                      <option value="Transfer Bank">Transfer Bank</option>
+                      <option value="Tunai">Tunai</option>
+                      <option value="QRIS">QRIS</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">TOTAL NOMINAL TAGIHAN (RP)</label>
+                <input
+                  type="number"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">CATATAN TAGIHAN</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Keterangan pembayaran / diskon / penyesuaian"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setBillToEdit(null)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm"
+                >
+                  Simpan Perubahan Status
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Konfirmasi Hapus Tagihan */}
       <ConfirmDeleteModal
         isOpen={!!billToDelete}

@@ -15,6 +15,7 @@ import {
   UserRole,
   Student,
   Tutor,
+  SessionConfig,
 } from '../../types/bimbel';
 import { DEFAULT_SESSIONS } from '../../services/bimbelStorage';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
@@ -23,6 +24,7 @@ interface JadwalModuleProps {
   schedules: ScheduleItem[];
   students: Student[];
   tutors: Tutor[];
+  sessions?: SessionConfig[];
   onSaveSchedule: (schedule: ScheduleItem) => void;
   onDeleteSchedule: (scheduleId: string) => void;
   userRole: UserRole;
@@ -33,11 +35,13 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
   schedules,
   students,
   tutors,
+  sessions,
   onSaveSchedule,
   onDeleteSchedule,
   userRole,
   currentTutorId,
 }) => {
+  const activeSessions = sessions && sessions.length > 0 ? sessions : DEFAULT_SESSIONS;
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Senin');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
@@ -92,7 +96,7 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const sessionObj = DEFAULT_SESSIONS.find((s) => s.id === formSessionId);
+    const sessionObj = activeSessions.find((s) => s.id === formSessionId);
     const tutorObj = tutors.find((t) => t.id === formTutorId);
     const maxAllowed = getMaxStudents(formBimbelType);
 
@@ -150,11 +154,11 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
               Jadwal Sesi Bimbel (Senin - Kamis)
             </h1>
             <span className="px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">
-              4 Hari • 5 Sesi
+              4 Hari • {activeSessions.length} Sesi
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Jadwal kegiatan belajar mengajar rutin 5 sesi harian untuk semua kelas
+            Jadwal kegiatan belajar mengajar rutin {activeSessions.length} sesi harian untuk semua kelas
           </p>
         </div>
 
@@ -197,9 +201,9 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
         })}
       </div>
 
-      {/* Sessions View (1 to 5) for Selected Day */}
+      {/* Sessions View for Selected Day */}
       <div className="space-y-3.5">
-        {DEFAULT_SESSIONS.map((session) => {
+        {activeSessions.map((session) => {
           const sessionSchedules = filteredSchedules.filter((s) => s.sessionId === session.id);
 
           return (
@@ -361,7 +365,7 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
                     onChange={(e) => setFormSessionId(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
                   >
-                    {DEFAULT_SESSIONS.map((s) => (
+                    {activeSessions.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.time})
                       </option>

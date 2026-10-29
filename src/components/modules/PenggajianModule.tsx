@@ -9,6 +9,8 @@ import {
   Award,
   X,
   Trash2,
+  Edit2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   SalarySlip,
@@ -37,20 +39,22 @@ interface PenggajianModuleProps {
   currentTutorId?: string;
 }
 
-const MONTH_OPTIONS = [
-  'Januari 2026',
-  'Februari 2026',
-  'Maret 2026',
-  'April 2026',
-  'Mei 2026',
-  'Juni 2026',
-  'Juli 2026',
-  'Agustus 2026',
-  'September 2026',
-  'Oktober 2026',
-  'November 2026',
-  'Desember 2026',
+const MONTHS_LIST = [
+  { value: '01', name: 'Januari' },
+  { value: '02', name: 'Februari' },
+  { value: '03', name: 'Maret' },
+  { value: '04', name: 'April' },
+  { value: '05', name: 'Mei' },
+  { value: '06', name: 'Juni' },
+  { value: '07', name: 'Juli' },
+  { value: '08', name: 'Agustus' },
+  { value: '09', name: 'September' },
+  { value: '10', name: 'Oktober' },
+  { value: '11', name: 'November' },
+  { value: '12', name: 'Desember' },
 ];
+
+const YEAR_OPTIONS = [2024, 2025, 2026, 2027, 2028, 2029, 2030];
 
 export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   slips,
@@ -67,9 +71,17 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
   const [slipToDelete, setSlipToDelete] = useState<SalarySlip | null>(null);
 
+  // Edit Slip Status modal state
+  const [slipToEdit, setSlipToEdit] = useState<SalarySlip | null>(null);
+  const [editSlipStatus, setEditSlipStatus] = useState<'draft' | 'paid'>('draft');
+  const [editSlipPaidDate, setEditSlipPaidDate] = useState<string>('');
+  const [editSlipNotes, setEditSlipNotes] = useState<string>('');
+  const [editSlipTotalSalary, setEditSlipTotalSalary] = useState<number>(0);
+
   // Generator form
   const [selectedTutorId, setSelectedTutorId] = useState<string>(tutors[0]?.id || '');
-  const [selectedMonth, setSelectedMonth] = useState<string>('Oktober 2026');
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<string>('10'); // '10' for Oktober
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [customTunjanganJabatan, setCustomTunjanganJabatan] = useState<number>(0);
   const [customTunjanganKehadiran, setCustomTunjanganKehadiran] = useState<number>(0);
   const [customTransport, setCustomTransport] = useState<number>(0);
@@ -78,6 +90,38 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   const canManage = userRole === 'super_admin' || userRole === 'admin';
+
+  // Derived selected period string (e.g. "Oktober 2026" or "Mei 2026")
+  const selectedMonthName =
+    MONTHS_LIST.find((m) => m.value === selectedMonthIndex)?.name || 'Oktober';
+  const selectedPeriod = `${selectedMonthName} ${selectedYear}`;
+
+  // Filter attendance records specifically for selected tutor in selected month and year
+  const tutorMonthlyRecords = attendanceRecords.filter((a) => {
+    if (a.tutorId !== selectedTutorId) return false;
+    if (!a.date) return false;
+    const parts = a.date.split('-');
+    if (parts.length >= 2) {
+      const yr = Number(parts[0]);
+      const mo = parts[1];
+      return yr === selectedYear && mo === selectedMonthIndex;
+    }
+    const d = new Date(a.date);
+    return (
+      d.getFullYear() === selectedYear &&
+      String(d.getMonth() + 1).padStart(2, '0') === selectedMonthIndex
+    );
+  });
+
+  const hasTaughtThisPeriod = tutorMonthlyRecords.length > 0;
+
+  // Check if slip for selected tutor and period is ALREADY paid
+  const alreadyPaidSlip = slips.find(
+    (s) =>
+      s.tutorId === selectedTutorId &&
+      s.monthPeriod === selectedPeriod &&
+      s.status === 'paid'
+  );
 
   let displaySlips = slips;
   if (userRole === 'guru' && currentTutorId) {
@@ -95,6 +139,32 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
     setIsGeneratorModalOpen(true);
   };
 
+  const handleOpenEditSlip = (slip: SalarySlip) => {
+    setSlipToEdit(slip);
+    setEditSlipStatus(slip.status);
+    setEditSlipPaidDate(slip.paidAt ? slip.paidAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+    setEditSlipNotes(slip.notes || '');
+    setEditSlipTotalSalary(slip.totalSalary);
+  };
+
+  const handleSaveEditSlip = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!slipToEdit) return;
+
+    const updated: SalarySlip = {
+      ...slipToEdit,
+      status: editSlipStatus,
+      paidAt: editSlipStatus === 'paid' ? (editSlipPaidDate || new Date().toISOString().split('T')[0]) : undefined,
+      notes: editSlipNotes,
+      totalSalary: editSlipTotalSalary,
+    };
+
+    onSaveSlip(updated);
+    setSlipToEdit(null);
+    setSuccessMessage(`Status slip gaji ${slipToEdit.tutorName} berhasil diperbarui.`);
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
   const handleGenerateSlip = (e: React.FormEvent) => {
     e.preventDefault();
     const tutor = tutors.find((t) => t.id === selectedTutorId);
@@ -103,8 +173,26 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
       return;
     }
 
-    const tutorRecords = attendanceRecords.filter((a) => a.tutorId === tutor.id);
-    const breakdown = tutorRecords.map((rec) => ({
+    // Logic Bimbel: Guru HANYA bisa dibuatkan slip jika mengajar pada bulan tersebut
+    if (!hasTaughtThisPeriod || tutorMonthlyRecords.length === 0) {
+      alert(
+        `Guru ${tutor.name} belum memiliki riwayat presensi mengajar pada periode ${selectedPeriod}. Slip gaji tidak dapat dihitung atau dibuat karena guru belum/tidak mengajar pada bulan tersebut.`
+      );
+      return;
+    }
+
+    // Duplicate check: if period is already paid, strictly prevent duplicate!
+    const existingPaid = slips.find(
+      (s) => s.tutorId === tutor.id && s.monthPeriod === selectedPeriod && s.status === 'paid'
+    );
+    if (existingPaid) {
+      alert(
+        `Slip gaji untuk ${tutor.name} pada periode ${selectedPeriod} SUDAH DICAIRKAN (Lunas) dengan ID ${existingPaid.id}. Tidak dapat membuat slip gaji ulang untuk periode yang telah dibayar!`
+      );
+      return;
+    }
+
+    const breakdown = tutorMonthlyRecords.map((rec) => ({
       date: rec.date,
       day: rec.day,
       sessionId: rec.sessionId,
@@ -121,13 +209,17 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
       customTransport -
       customDeduction;
 
+    const startDate = `${selectedYear}-${selectedMonthIndex}-01`;
+    const lastDayNum = new Date(selectedYear, Number(selectedMonthIndex), 0).getDate();
+    const endDate = `${selectedYear}-${selectedMonthIndex}-${String(lastDayNum).padStart(2, '0')}`;
+
     const newSlip: SalarySlip = {
       id: `SLIP-${Date.now().toString().slice(-6)}`,
       tutorId: tutor.id,
       tutorName: tutor.name,
-      monthPeriod: selectedMonth,
-      startDate: '2026-10-01',
-      endDate: '2026-10-31',
+      monthPeriod: selectedPeriod,
+      startDate,
+      endDate,
       totalSessions: breakdown.length,
       totalStudentsTaught,
       sessionHonorTotal,
@@ -143,7 +235,7 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
 
     onSaveSlip(newSlip);
     setIsGeneratorModalOpen(false);
-    setSuccessMessage(`Slip gaji untuk ${tutor.name} periode ${selectedMonth} berhasil dibuat!`);
+    setSuccessMessage(`Slip gaji untuk ${tutor.name} periode ${selectedPeriod} berhasil dibuat! (${breakdown.length} sesi mengajar)`);
     setTimeout(() => setSuccessMessage(''), 4000);
   };
 
@@ -300,6 +392,17 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                   <MessageCircle className="w-4 h-4" />
                 </a>
 
+                {/* Edit Slip Status Button */}
+                {canManage && (
+                  <button
+                    onClick={() => handleOpenEditSlip(slip)}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                    title="Edit Status & Data Slip Gaji"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Delete button */}
                 {canManage && onDeleteSlip && (
                   <button
@@ -376,21 +479,65 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                 </select>
               </div>
 
-              {/* Bulan Dropdown */}
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">PERIODE BULAN</label>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
-                >
-                  {MONTH_OPTIONS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+              {/* Dropdown Bulan dan Dropdown Tahun */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">PERIODE BULAN</label>
+                  <select
+                    value={selectedMonthIndex}
+                    onChange={(e) => setSelectedMonthIndex(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
+                  >
+                    {MONTHS_LIST.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">TAHUN</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-indigo-500 outline-none"
+                  >
+                    {YEAR_OPTIONS.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {/* Status Riwayat Mengajar Guru pada Bulan & Tahun Terpilih */}
+              {hasTaughtThisPeriod ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs space-y-1 animate-in fade-in">
+                  <div className="flex items-center space-x-1.5 font-bold text-emerald-900">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Ditemukan Riwayat Mengajar ({selectedPeriod})</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 pl-5.5">
+                    Total: <strong>{tutorMonthlyRecords.length} sesi</strong> mengajar (
+                    {tutorMonthlyRecords.reduce((sum, r) => sum + r.attendedStudentIds.length, 0)} anak hadir) • Akumulasi Honor Sesi:{' '}
+                    <strong>
+                      {formatRupiah(tutorMonthlyRecords.reduce((sum, r) => sum + r.honorEarned, 0))}
+                    </strong>
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs space-y-1 animate-in fade-in">
+                  <div className="flex items-center space-x-1.5 font-bold text-amber-900">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Belum Ada Sesi Mengajar ({selectedPeriod})</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 pl-5.5">
+                    Guru <strong>{tutors.find((t) => t.id === selectedTutorId)?.name || 'ini'}</strong> belum mengajar pada bulan{' '}
+                    <strong>{selectedPeriod}</strong>. Slip gaji <strong>tidak dapat dihitung</strong> karena tidak ada riwayat presensi mengajar pada bulan tersebut.
+                  </p>
+                </div>
+              )}
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                 <p className="font-bold text-slate-800 text-[11px] flex items-center space-x-1.5">
@@ -446,6 +593,19 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                 />
               </div>
 
+              {/* Warning if slip for this period was ALREADY paid */}
+              {alreadyPaidSlip && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start space-x-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-rose-900">Gaji Periode Ini Sudah Lunas</strong>
+                    <span>
+                      Gaji {tutors.find((t) => t.id === selectedTutorId)?.name || 'guru ini'} periode {selectedPeriod} sudah lunas dicairkan (Slip: {alreadyPaidSlip.id}). Sistem memblokir pembuatan slip baru agar tidak terjadi pembayaran ganda.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
                 <button
                   type="button"
@@ -456,9 +616,25 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm"
+                  disabled={!hasTaughtThisPeriod || !!alreadyPaidSlip}
+                  className={`px-5 py-2 rounded-xl font-bold text-xs transition-all ${
+                    !hasTaughtThisPeriod || !!alreadyPaidSlip
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                  }`}
+                  title={
+                    !hasTaughtThisPeriod
+                      ? 'Guru belum mengajar pada periode ini, tidak ada slip gaji yang bisa dihitung'
+                      : alreadyPaidSlip
+                      ? 'Gaji periode ini sudah lunas, tidak dapat digenerate ulang!'
+                      : 'Hitung & Buat Slip Gaji'
+                  }
                 >
-                  Generate Slip Gaji
+                  {!hasTaughtThisPeriod
+                    ? 'Belum Mengajar pada Bulan Ini'
+                    : alreadyPaidSlip
+                    ? 'Periode Sudah Dibayar'
+                    : 'Hitung & Buat Slip Gaji'}
                 </button>
               </div>
             </form>
@@ -511,11 +687,17 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
                 </div>
               </div>
 
-              {/* Title */}
+              {/* Title & Print Timestamp */}
               <div className="text-center py-1">
                 <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800">
                   SLIP GAJI GURU / TENAGA PENGAJAR
                 </h3>
+                <div className="mt-1.5 inline-flex items-center space-x-1.5 px-3 py-1 bg-slate-100/90 rounded-full text-[10px] text-slate-600 border border-slate-200/80 shadow-2xs">
+                  <Clock className="w-3 h-3 text-indigo-600" />
+                  <span>
+                    Tanggal Cetak Slip: <strong className="text-slate-800">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong> pukul <strong className="text-slate-800">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</strong>
+                  </span>
+                </div>
               </div>
 
               {/* Tutor Info */}
@@ -669,6 +851,110 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL EDIT STATUS SLIP GAJI */}
+      {slipToEdit && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Edit Status Slip Gaji Guru
+                </h3>
+                <p className="text-[11px] text-slate-500">{slipToEdit.tutorName} • {slipToEdit.monthPeriod}</p>
+              </div>
+              <button
+                onClick={() => setSlipToEdit(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSlip} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">STATUS PEMBAYARAN GAJI</label>
+                <select
+                  value={editSlipStatus}
+                  onChange={(e) => setEditSlipStatus(e.target.value as 'draft' | 'paid')}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-semibold text-slate-800 outline-none focus:border-indigo-500"
+                >
+                  <option value="draft">Draft Gaji (Menunggu Pencairan)</option>
+                  <option value="paid">Sudah Dicairkan (Lunas)</option>
+                </select>
+              </div>
+
+              {editSlipStatus === 'paid' && (
+                <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl space-y-2">
+                  <label className="block font-semibold text-emerald-800">TANGGAL PENCAIRAN GAJI</label>
+                  <input
+                    type="date"
+                    value={editSlipPaidDate}
+                    onChange={(e) => setEditSlipPaidDate(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 bg-white text-slate-800 font-medium outline-none"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">TOTAL NOMINAL GAJI (RP)</label>
+                <input
+                  type="number"
+                  value={editSlipTotalSalary}
+                  onChange={(e) => setEditSlipTotalSalary(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">CATATAN SLIP GAJI</label>
+                <input
+                  type="text"
+                  value={editSlipNotes}
+                  onChange={(e) => setEditSlipNotes(e.target.value)}
+                  placeholder="Keterangan pencairan..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSlipToEdit(null)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Slip Gaji */}
+      <ConfirmDeleteModal
+        isOpen={!!slipToDelete}
+        title="Hapus Slip Gaji"
+        message="Slip gaji ini akan dihapus secara permanen dari sistem dan database Supabase."
+        itemName={
+          slipToDelete
+            ? `${slipToDelete.tutorName} • Periode ${slipToDelete.monthPeriod} (${formatRupiah(slipToDelete.totalSalary)})`
+            : ''
+        }
+        onConfirm={() => {
+          if (slipToDelete && onDeleteSlip) {
+            onDeleteSlip(slipToDelete.id);
+            setSlipToDelete(null);
+          }
+        }}
+        onCancel={() => setSlipToDelete(null)}
+      />
     </div>
   );
 };

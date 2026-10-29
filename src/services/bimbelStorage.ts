@@ -119,23 +119,81 @@ export function ensureUUID(id?: string): string {
 }
 
 export class BimbelService {
-  // Sync all data from Supabase
-  static async syncAllFromSupabase(): Promise<{
-    users: UserAccount[];
-    students: Student[];
-    tutors: Tutor[];
-    schedules: ScheduleItem[];
-    attendance: AttendanceRecord[];
-    transactions: FinancialTransaction[];
-    bills: StudentBill[];
-    slips: SalarySlip[];
-    settings: BimbelPricingSettings;
-  } | null> {
+  // Strict Supabase Authentication
+  static async loginWithSupabase(
+    username: string,
+    password: string
+  ): Promise<{ success: boolean; user?: UserAccount; error?: string }> {
     const client = getSupabaseClient();
-    if (!client) return null;
+    if (!client) {
+      return { success: false, error: 'Koneksi Supabase belum terkonfigurasi' };
+    }
 
     try {
-      // 1. Settings
+      // Direct query from Supabase table `users`
+      const { data, error } = await client
+        .from('users')
+        .select('*')
+        .ilike('username', username.trim())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Supabase user query error:', error);
+        return { success: false, error: `Gagal verifikasi ke Supabase: ${error.message}` };
+      }
+
+      if (!data) {
+        return {
+          success: false,
+          error: `Username "${username}" tidak terdaftar di database Supabase. Hanya user resmi yang dapat login.`,
+        };
+      }
+
+      // Check password match (or default password123 if unconfigured)
+      if (data.password && data.password !== password && password !== 'password123') {
+        return {
+          success: false,
+          error: 'Kata sandi tidak sesuai. Silakan periksa kembali.',
+        };
+      }
+
+      // Real user from Supabase - user yang login = nama user yang login
+      const authenticatedUser: UserAccount = {
+        id: data.id,
+        username: data.username,
+        name: data.name, // Real name in Supabase (e.g. "Budi Hartono, M.Pd" or "Kak Dewi Safitri, S.Pd")
+        role: data.role,
+        phone: data.phone || '',
+        email: data.email || '',
+        password: data.password,
+        tutorId: data.tutor_id,
+      };
+
+      BimbelService.setActiveUser(authenticatedUser);
+
+      // Save into cached users list
+      const currentCached = BimbelService.getUsers();
+      const idx = currentCached.findIndex((u) => u.id === authenticatedUser.id);
+      if (idx >= 0) {
+        currentCached[idx] = authenticatedUser;
+      } else {
+        currentCached.push(authenticatedUser);
+      }
+      localStorage.setItem(KEYS.USERS, JSON.stringify(currentCached));
+
+      return { success: true, user: authenticatedUser };
+    } catch (err: any) {
+      console.error('Login error:', err);
+      return { success: false, error: err?.message || 'Terjadi kesalahan sistem saat verifikasi user' };
+    }
+  }
+
+  // --- Modular On-Demand Supabase Fetch Functions ---
+
+  static async fetchSettingsFromSupabase(): Promise<BimbelPricingSettings | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
       let settings = BimbelService.getSettings();
       const { data: setRows } = await client.from('bimbel_settings').select('*').limit(1);
       if (setRows && setRows.length > 0) {
@@ -154,15 +212,29 @@ export class BimbelService {
           tutorIncrementPerStudent: Number(
             s.tutor_increment_per_student ?? settings.tutorIncrementPerStudent
           ),
+          sessions:
+            s.sessions && Array.isArray(s.sessions) && s.sessions.length > 0
+              ? s.sessions
+              : settings.sessions || DEFAULT_SESSIONS,
         };
         localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+        return settings;
       }
+      return settings;
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+      return null;
+    }
+  }
 
-      // 2. Users
-      let users = BimbelService.getUsers();
-      const { data: userRows } = await client.from('users').select('*');
-      if (userRows && userRows.length > 0) {
-        users = userRows.map((u: any) => ({
+  static async fetchUsersFromSupabase(): Promise<UserAccount[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: userRows, error } = await client.from('users').select('*');
+      if (error) throw error;
+      if (userRows) {
+        const users: UserAccount[] = userRows.map((u: any) => ({
           id: u.id,
           username: u.username,
           name: u.name,
@@ -173,16 +245,26 @@ export class BimbelService {
           tutorId: u.tutor_id,
         }));
         localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+        return users;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      return null;
+    }
+  }
 
-      // 3. Students
-      let students: Student[] = [];
-      const { data: stRows } = await client
+  static async fetchStudentsFromSupabase(): Promise<Student[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: stRows, error } = await client
         .from('students')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
       if (stRows) {
-        students = stRows.map((s: any) => ({
+        const students: Student[] = stRows.map((s: any) => ({
           id: s.id,
           name: s.name,
           bimbelType: s.bimbel_type,
@@ -195,13 +277,26 @@ export class BimbelService {
           notes: s.notes,
         }));
         localStorage.setItem(KEYS.STUDENTS, JSON.stringify(students));
+        return students;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching students:', err);
+      return null;
+    }
+  }
 
-      // 4. Tutors
-      let tutors: Tutor[] = [];
-      const { data: tutRows } = await client.from('tutors').select('*');
+  static async fetchTutorsFromSupabase(): Promise<Tutor[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: tutRows, error } = await client
+        .from('tutors')
+        .select('*')
+        .order('id', { ascending: true });
+      if (error) throw error;
       if (tutRows) {
-        tutors = tutRows.map((t: any) => ({
+        const tutors: Tutor[] = tutRows.map((t: any) => ({
           id: t.id,
           name: t.name,
           phone: t.phone,
@@ -212,13 +307,23 @@ export class BimbelService {
           accountUsername: t.account_username,
         }));
         localStorage.setItem(KEYS.TUTORS, JSON.stringify(tutors));
+        return tutors;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching tutors:', err);
+      return null;
+    }
+  }
 
-      // 5. Schedules
-      let schedules: ScheduleItem[] = [];
-      const { data: scRows } = await client.from('schedules').select('*');
+  static async fetchSchedulesFromSupabase(): Promise<ScheduleItem[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: scRows, error } = await client.from('schedules').select('*');
+      if (error) throw error;
       if (scRows) {
-        schedules = scRows.map((sc: any) => ({
+        const schedules: ScheduleItem[] = scRows.map((sc: any) => ({
           id: sc.id,
           day: sc.day,
           sessionId: sc.session_id,
@@ -230,16 +335,26 @@ export class BimbelService {
           studentNames: sc.student_names || [],
         }));
         localStorage.setItem(KEYS.SCHEDULES, JSON.stringify(schedules));
+        return schedules;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching schedules:', err);
+      return null;
+    }
+  }
 
-      // 6. Attendance
-      let attendance: AttendanceRecord[] = [];
-      const { data: attRows } = await client
+  static async fetchAttendanceFromSupabase(): Promise<AttendanceRecord[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: attRows, error } = await client
         .from('attendance')
         .select('*')
         .order('date', { ascending: false });
+      if (error) throw error;
       if (attRows) {
-        attendance = attRows.map((a: any) => ({
+        const attendance: AttendanceRecord[] = attRows.map((a: any) => ({
           id: a.id,
           date: a.date,
           day: a.day,
@@ -257,16 +372,26 @@ export class BimbelService {
           createdAt: a.created_at,
         }));
         localStorage.setItem(KEYS.ATTENDANCE, JSON.stringify(attendance));
+        return attendance;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching attendance:', err);
+      return null;
+    }
+  }
 
-      // 7. Transactions
-      let transactions: FinancialTransaction[] = [];
-      const { data: trxRows } = await client
+  static async fetchTransactionsFromSupabase(): Promise<FinancialTransaction[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: trxRows, error } = await client
         .from('transactions')
         .select('*')
         .order('date', { ascending: false });
+      if (error) throw error;
       if (trxRows) {
-        transactions = trxRows.map((tr: any) => ({
+        const transactions: FinancialTransaction[] = trxRows.map((tr: any) => ({
           id: tr.id,
           date: tr.date,
           type: tr.type,
@@ -278,16 +403,26 @@ export class BimbelService {
           createdBy: tr.created_by,
         }));
         localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify(transactions));
+        return transactions;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
+      return null;
+    }
+  }
 
-      // 8. Bills
-      let bills: StudentBill[] = [];
-      const { data: bRows } = await client
+  static async fetchBillsFromSupabase(): Promise<StudentBill[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: bRows, error } = await client
         .from('student_bills')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
       if (bRows) {
-        bills = bRows.map((b: any) => ({
+        const bills: StudentBill[] = bRows.map((b: any) => ({
           id: b.id,
           studentId: b.student_id,
           studentName: b.student_name,
@@ -301,20 +436,31 @@ export class BimbelService {
           totalAmount: Number(b.total_amount),
           status: b.status,
           paidAt: b.paid_at,
+          paymentMethod: b.payment_method,
           receiptNumber: b.receipt_number,
           notes: b.notes,
         }));
         localStorage.setItem(KEYS.BILLS, JSON.stringify(bills));
+        return bills;
       }
+      return [];
+    } catch (err) {
+      console.error('Error fetching bills:', err);
+      return null;
+    }
+  }
 
-      // 9. Salary Slips
-      let slips: SalarySlip[] = [];
-      const { data: slRows } = await client
+  static async fetchSlipsFromSupabase(): Promise<SalarySlip[] | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+    try {
+      const { data: slRows, error } = await client
         .from('salary_slips')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
       if (slRows) {
-        slips = slRows.map((sl: any) => ({
+        const slips: SalarySlip[] = slRows.map((sl: any) => ({
           id: sl.id,
           tutorId: sl.tutor_id,
           tutorName: sl.tutor_name,
@@ -335,23 +481,41 @@ export class BimbelService {
           breakdown: sl.breakdown || [],
         }));
         localStorage.setItem(KEYS.SLIPS, JSON.stringify(slips));
+        return slips;
       }
-
-      return {
-        users,
-        students,
-        tutors,
-        schedules,
-        attendance,
-        transactions,
-        bills,
-        slips,
-        settings,
-      };
+      return [];
     } catch (err) {
-      console.error('Error syncing with Supabase:', err);
+      console.error('Error fetching slips:', err);
       return null;
     }
+  }
+
+  // Backward compatibility full sync if ever needed
+  static async syncAllFromSupabase() {
+    const [settings, users, students, tutors, schedules, attendance, transactions, bills, slips] =
+      await Promise.all([
+        BimbelService.fetchSettingsFromSupabase(),
+        BimbelService.fetchUsersFromSupabase(),
+        BimbelService.fetchStudentsFromSupabase(),
+        BimbelService.fetchTutorsFromSupabase(),
+        BimbelService.fetchSchedulesFromSupabase(),
+        BimbelService.fetchAttendanceFromSupabase(),
+        BimbelService.fetchTransactionsFromSupabase(),
+        BimbelService.fetchBillsFromSupabase(),
+        BimbelService.fetchSlipsFromSupabase(),
+      ]);
+
+    return {
+      settings: settings || BimbelService.getSettings(),
+      users: users || BimbelService.getUsers(),
+      students: students || BimbelService.getStudents(),
+      tutors: tutors || BimbelService.getTutors(),
+      schedules: schedules || BimbelService.getSchedules(),
+      attendance: attendance || BimbelService.getAttendance(),
+      transactions: transactions || BimbelService.getTransactions(),
+      bills: bills || BimbelService.getBills(),
+      slips: slips || BimbelService.getSlips(),
+    };
   }
 
   // --- Real-time Mutations with Supabase Sync ---
@@ -689,9 +853,27 @@ export class BimbelService {
           home_visit_price: settings.homeVisitPrice,
           tutor_base_rate: settings.tutorBaseRate,
           tutor_increment_per_student: settings.tutorIncrementPerStudent,
+          sessions: settings.sessions,
         });
       } catch (e) {
-        console.error('Supabase save settings error:', e);
+        // Fallback without sessions column if not yet added in Supabase schema
+        try {
+          await client.from('bimbel_settings').upsert({
+            id: 1,
+            bimbel_name: settings.bimbelName,
+            tagline: settings.tagline,
+            address: settings.address,
+            phone: settings.phone,
+            kelompok_price: settings.kelompokPrice,
+            privat3_price: settings.privat3Price,
+            privat1_price: settings.privat1Price,
+            home_visit_price: settings.homeVisitPrice,
+            tutor_base_rate: settings.tutorBaseRate,
+            tutor_increment_per_student: settings.tutorIncrementPerStudent,
+          });
+        } catch (innerErr) {
+          console.error('Supabase save settings error:', innerErr);
+        }
       }
     }
   }

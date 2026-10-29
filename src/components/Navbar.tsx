@@ -107,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
               </div>
               <div className="hidden sm:block text-left">
-                <div className="text-xs font-semibold text-slate-800 line-clamp-1 max-w-[120px]">
+                <div className="text-xs font-semibold text-slate-800 line-clamp-1 max-w-[200px] md:max-w-[260px]">
                   {currentUser?.name}
                 </div>
                 <div className="flex items-center space-x-1">
