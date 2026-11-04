@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Home,
   Info,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
 import {
   SalarySlip,
@@ -76,6 +78,16 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
   const [activeSlip, setActiveSlip] = useState<SalarySlip | null>(null);
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
   const [slipToDelete, setSlipToDelete] = useState<SalarySlip | null>(null);
+
+  // View Mode: 'grid' (kotak-kotak) or 'table' (baris-baris)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    return (localStorage.getItem('bimbel_penggajian_view') as 'grid' | 'table') || 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    localStorage.setItem('bimbel_penggajian_view', mode);
+  };
 
   // Edit Slip Status modal state
   const [slipToEdit, setSlipToEdit] = useState<SalarySlip | null>(null);
@@ -356,7 +368,7 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
         </div>
       )}
 
-      {/* Header */}
+      {/* Header and View Mode Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-slate-900">
@@ -369,162 +381,326 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
           </p>
         </div>
 
-        {canManage && (
-          <button
-            onClick={() => handleOpenGenerator()}
-            className="flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-sm transition-all"
-          >
-            <Sparkles className="w-4 h-4 text-indigo-200" />
-            <span>Hitung & Buat Slip Gaji</span>
-          </button>
-        )}
-      </div>
-
-      {/* Slip Cards List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {displaySlips.map((slip) => {
-          const isPaid = slip.status === 'paid';
-          return (
-            <div
-              key={slip.id}
-              className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {/* Toggle Kotak (Grid) vs Baris (Tabel) - Compact Icon-only */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              title="Tampilan Kotak"
+              aria-label="Tampilan Kotak"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
             >
-              <div>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                      {slip.id}
-                    </span>
-                    <h3 className="font-bold text-slate-900 text-base mt-1">{slip.tutorName}</h3>
-                    <p className="text-xs text-indigo-600 font-semibold">{slip.monthPeriod}</p>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
-                      isPaid
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}
-                  >
-                    {isPaid ? '✓ DICAIRKAN' : 'DRAFT GAJI'}
-                  </span>
-                </div>
-
-                {/* Salary Breakdown overview */}
-                <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total Sesi Mengajar:</span>
-                    <span className="text-slate-800 font-semibold">{slip.totalSessions} Sesi</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Honor Presensi Sesi:</span>
-                    <span className="font-mono text-slate-800">
-                      {formatRupiah(slip.sessionHonorTotal)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Tunjangan Jabatan:</span>
-                    <span className="font-mono text-slate-800">
-                      {formatRupiah(slip.tunjanganJabatan)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Tunjangan Kehadiran:</span>
-                    <span className="font-mono text-slate-800">
-                      {formatRupiah(slip.tunjanganKehadiran || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Uang Transport:</span>
-                    <span className="font-mono text-slate-800">
-                      {formatRupiah(slip.transport || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">Gaji Bersih Diterima:</span>
-                    <span className="font-mono font-extrabold text-emerald-600 text-base">
-                      {formatRupiah(slip.totalSalary)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                <button
-                  onClick={() => setActiveSlip(slip)}
-                  className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs border border-slate-200 transition-all"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Lihat Slip</span>
-                </button>
-
-                {/* WhatsApp Share to Guru */}
-                <a
-                  href={createWhatsAppLink(
-                    tutors.find((t) => t.id === slip.tutorId)?.phone || '08123456789',
-                    `Halo ${slip.tutorName}, berikut rincian slip gaji bimbel untuk periode ${slip.monthPeriod}. Total gaji diterima: ${formatRupiah(slip.totalSalary)}. Status: ${isPaid ? 'Sudah dicairkan' : 'Proses pencairan'}. Terima kasih - BimbelSmart.`
-                  )}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all"
-                  title="Kirim ke WhatsApp Guru"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                </a>
-
-                {/* Edit Slip Status Button */}
-                {canManage && (
-                  <button
-                    onClick={() => handleOpenEditSlip(slip)}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                    title="Edit Status & Data Slip Gaji"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Delete button */}
-                {canManage && onDeleteSlip && (
-                  <button
-                    onClick={() => setSlipToDelete(slip)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                    title="Hapus Slip Gaji"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-
-                {canManage && !isPaid && (
-                  <button
-                    onClick={() => handlePay(slip.id)}
-                    className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-2xs transition-all"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Cairkan Gaji</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {displaySlips.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-            <Banknote className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-semibold text-slate-600">
-              {userRole === 'guru'
-                ? 'Belum ada slip gaji yang diterbitkan untuk akun Anda'
-                : 'Belum ada slip gaji'}
-            </p>
-            <p className="mt-0.5">
-              {userRole === 'guru'
-                ? 'Slip honor bulanan Anda akan muncul di sini setelah dihitung dan disetujui oleh Super Admin.'
-                : "Klik 'Hitung & Buat Slip Gaji' untuk membuat slip gaji guru"}
-            </p>
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('table')}
+              title="Tampilan Baris"
+              aria-label="Tampilan Baris"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
           </div>
-        )}
+
+          {canManage && (
+            <button
+              onClick={() => handleOpenGenerator()}
+              className="flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-sm transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-200" />
+              <span>Hitung & Buat Slip Gaji</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* View Mode: Kotak-kotak (Grid Cards) */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {displaySlips.map((slip) => {
+            const isPaid = slip.status === 'paid';
+            return (
+              <div
+                key={slip.id}
+                className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                        {slip.id}
+                      </span>
+                      <h3 className="font-bold text-slate-900 text-base mt-1">{slip.tutorName}</h3>
+                      <p className="text-xs text-indigo-600 font-semibold">{slip.monthPeriod}</p>
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                        isPaid
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                    >
+                      {isPaid ? '✓ DICAIRKAN' : 'DRAFT GAJI'}
+                    </span>
+                  </div>
+
+                  {/* Salary Breakdown overview */}
+                  <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Total Sesi Mengajar:</span>
+                      <span className="text-slate-800 font-semibold">{slip.totalSessions} Sesi</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Honor Presensi Sesi:</span>
+                      <span className="font-mono text-slate-800">
+                        {formatRupiah(slip.sessionHonorTotal)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tunjangan Jabatan:</span>
+                      <span className="font-mono text-slate-800">
+                        {formatRupiah(slip.tunjanganJabatan)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tunjangan Kehadiran:</span>
+                      <span className="font-mono text-slate-800">
+                        {formatRupiah(slip.tunjanganKehadiran || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Uang Transport:</span>
+                      <span className="font-mono text-slate-800">
+                        {formatRupiah(slip.transport || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="font-bold text-slate-800">Gaji Bersih Diterima:</span>
+                      <span className="font-mono font-extrabold text-emerald-600 text-base">
+                        {formatRupiah(slip.totalSalary)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveSlip(slip)}
+                    className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs border border-slate-200 transition-all"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Lihat Slip</span>
+                  </button>
+
+                  {/* WhatsApp Share to Guru */}
+                  <a
+                    href={createWhatsAppLink(
+                      tutors.find((t) => t.id === slip.tutorId)?.phone || '08123456789',
+                      `Halo ${slip.tutorName}, berikut rincian slip gaji bimbel untuk periode ${slip.monthPeriod}. Total gaji diterima: ${formatRupiah(slip.totalSalary)}. Status: ${isPaid ? 'Sudah dicairkan' : 'Proses pencairan'}. Terima kasih - Belajar Alhidayah.`
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all"
+                    title="Kirim ke WhatsApp Guru"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </a>
+
+                  {/* Edit Slip Status Button */}
+                  {canManage && (
+                    <button
+                      onClick={() => handleOpenEditSlip(slip)}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                      title="Edit Status & Data Slip Gaji"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {/* Delete button */}
+                  {canManage && onDeleteSlip && (
+                    <button
+                      onClick={() => setSlipToDelete(slip)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                      title="Hapus Slip Gaji"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {canManage && !isPaid && (
+                    <button
+                      onClick={() => handlePay(slip.id)}
+                      className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-2xs transition-all"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Cairkan Gaji</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {displaySlips.length === 0 && (
+            <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+              <Banknote className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">
+                {userRole === 'guru'
+                  ? 'Belum ada slip gaji yang diterbitkan untuk akun Anda'
+                  : 'Belum ada slip gaji'}
+              </p>
+              <p className="mt-0.5">
+                {userRole === 'guru'
+                  ? 'Slip honor bulanan Anda akan muncul di sini setelah dihitung dan disetujui oleh Super Admin.'
+                  : "Klik 'Hitung & Buat Slip Gaji' untuk membuat slip gaji guru"}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* View Mode: Baris-baris (Tabel) */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">ID Slip</th>
+                  <th className="py-3.5 px-4">Nama Guru</th>
+                  <th className="py-3.5 px-4">Periode</th>
+                  <th className="py-3.5 px-4">Total Sesi</th>
+                  <th className="py-3.5 px-4">Honor Sesi</th>
+                  <th className="py-3.5 px-4">Tunjangan</th>
+                  <th className="py-3.5 px-4">Gaji Bersih</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {displaySlips.map((slip) => {
+                  const isPaid = slip.status === 'paid';
+                  const totalTunjangan = (slip.tunjanganJabatan || 0) + (slip.tunjanganKehadiran || 0) + (slip.transport || 0);
+                  return (
+                    <tr key={slip.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-mono text-[10px] font-bold text-slate-500">
+                        {slip.id}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {slip.tutorName}
+                      </td>
+                      <td className="py-3 px-4 text-indigo-600 font-semibold">
+                        {slip.monthPeriod}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {slip.totalSessions} Sesi
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-700">
+                        {formatRupiah(slip.sessionHonorTotal)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-700">
+                        {formatRupiah(totalTunjangan)}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-extrabold text-emerald-600">
+                        {formatRupiah(slip.totalSalary)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            isPaid
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {isPaid ? 'DICAIRKAN' : 'DRAFT'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => setActiveSlip(slip)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all"
+                            title="Lihat Slip Gaji"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                          <a
+                            href={createWhatsAppLink(
+                              tutors.find((t) => t.id === slip.tutorId)?.phone || '08123456789',
+                              `Halo ${slip.tutorName}, berikut rincian slip gaji bimbel untuk periode ${slip.monthPeriod}. Total gaji diterima: ${formatRupiah(slip.totalSalary)}. Status: ${isPaid ? 'Sudah dicairkan' : 'Proses pencairan'}. Terima kasih - Belajar Alhidayah.`
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition-all"
+                            title="Kirim ke WhatsApp Guru"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                          {canManage && (
+                            <button
+                              onClick={() => handleOpenEditSlip(slip)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Edit Status & Data Slip Gaji"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canManage && onDeleteSlip && (
+                            <button
+                              onClick={() => setSlipToDelete(slip)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              title="Hapus Slip Gaji"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canManage && !isPaid && (
+                            <button
+                              onClick={() => handlePay(slip.id)}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] shadow-2xs transition-all flex items-center space-x-1"
+                              title="Cairkan Gaji"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Cairkan</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {displaySlips.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <Banknote className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">
+                {userRole === 'guru'
+                  ? 'Belum ada slip gaji yang diterbitkan untuk akun Anda'
+                  : 'Belum ada slip gaji'}
+              </p>
+              <p className="mt-0.5">
+                {userRole === 'guru'
+                  ? 'Slip honor bulanan Anda akan muncul di sini setelah dihitung dan disetujui oleh Super Admin.'
+                  : "Klik 'Hitung & Buat Slip Gaji' untuk membuat slip gaji guru"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* GENERATOR SLIP MODAL */}
       {isGeneratorModalOpen && (
@@ -827,12 +1003,21 @@ export const PenggajianModule: React.FC<PenggajianModuleProps> = ({
             <div className="p-6 printable-card bg-white text-slate-900 space-y-4 font-sans">
               {/* Slip Header */}
               <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight uppercase text-indigo-900">
-                    {settings.bimbelName}
-                  </h2>
-                  <p className="text-[11px] text-slate-500">{settings.tagline}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{settings.address} • Telp: {settings.phone}</p>
+                <div className="flex items-center space-x-3">
+                  {settings.logoUrl && (
+                    <img
+                      src={settings.logoUrl}
+                      alt={settings.bimbelName}
+                      className="w-12 h-12 rounded-lg object-contain border border-slate-200 p-0.5 shrink-0 bg-white"
+                    />
+                  )}
+                  <div>
+                    <h2 className="text-lg font-black tracking-tight uppercase text-indigo-900">
+                      {settings.bimbelName}
+                    </h2>
+                    <p className="text-[11px] text-slate-500">{settings.tagline}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{settings.address} • Telp: {settings.phone}</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className="inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 rounded border border-slate-200">

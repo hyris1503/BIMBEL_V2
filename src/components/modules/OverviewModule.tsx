@@ -243,10 +243,6 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
               <TrendingUp className="w-4 h-4 text-indigo-600" />
               <span>Diagram Garis Arus Kas Keuangan</span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Titik di atas garis nol (positif) adalah Pemasukan, dan titik di bawah garis nol
-              (negatif) adalah Pengeluaran
-            </p>
           </div>
 
           <div className="flex items-center space-x-4 text-xs font-semibold">
@@ -448,7 +444,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {todaySchedules.map((item) => (
+            {todaySchedules.slice(0, 4).map((item) => (
               <div
                 key={item.id}
                 className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between"

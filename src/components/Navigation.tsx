@@ -99,8 +99,8 @@ export const Navigation: React.FC<NavigationProps> = ({
       </div>
 
       {/* Mobile App First Bottom Navigation Bar - ICONS ONLY */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 shadow-lg md:hidden no-print">
-        <div className="grid grid-flow-col auto-cols-fr h-14 items-center px-1">
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 shadow-lg md:hidden no-print overflow-hidden select-none">
+        <div className="grid grid-flow-col auto-cols-fr h-14 items-center px-0.5 overflow-hidden w-full max-w-full">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -109,16 +109,17 @@ export const Navigation: React.FC<NavigationProps> = ({
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 title={tab.label}
-                className={`flex items-center justify-center py-2 transition-all ${
+                aria-label={tab.label}
+                className={`flex items-center justify-center py-1.5 min-w-0 transition-all outline-none ${
                   isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <div
-                  className={`p-2 rounded-xl transition-all ${
-                    isActive ? 'bg-indigo-50 text-indigo-600 transform scale-110 shadow-2xs' : ''
+                  className={`p-1.5 sm:p-2 rounded-xl transition-all ${
+                    isActive ? 'bg-indigo-50 text-indigo-600 transform scale-105 shadow-2xs' : ''
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-5 h-5 shrink-0" />
                 </div>
               </button>
             );

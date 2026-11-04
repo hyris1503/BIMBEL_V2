@@ -15,6 +15,8 @@ import {
   Search,
   Trash2,
   Edit2,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
 import {
   StudentBill,
@@ -58,6 +60,16 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
   const [paymentMethodModal, setPaymentMethodModal] = useState<StudentBill | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<'Transfer Bank' | 'Tunai' | 'QRIS'>('Transfer Bank');
   const [billToDelete, setBillToDelete] = useState<StudentBill | null>(null);
+
+  // View Mode: 'grid' (kotak-kotak) or 'table' (baris-baris)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    return (localStorage.getItem('bimbel_tagihan_view') as 'grid' | 'table') || 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    localStorage.setItem('bimbel_tagihan_view', mode);
+  };
 
   // Edit status modal state
   const [billToEdit, setBillToEdit] = useState<StudentBill | null>(null);
@@ -275,8 +287,8 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
+      {/* Filters and View Mode Toggle */}
+      <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -288,147 +300,304 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
           />
         </div>
 
-        <div className="flex items-center space-x-1.5">
-          {(['all', 'unpaid', 'paid'] as const).map((st) => (
+        <div className="flex items-center justify-between sm:justify-end gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          <div className="flex items-center space-x-1.5 shrink-0">
+            {(['all', 'unpaid', 'paid'] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setFilterStatus(st)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  filterStatus === st
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {st === 'all' ? 'Semua' : st === 'unpaid' ? 'Belum Bayar' : 'Lunas'}
+              </button>
+            ))}
+          </div>
+
+          {/* Toggle Kotak (Grid) vs Baris (Tabel) - Compact Icon-only */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
             <button
-              key={st}
-              onClick={() => setFilterStatus(st)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                filterStatus === st
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              title="Tampilan Kotak"
+              aria-label="Tampilan Kotak"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
               }`}
             >
-              {st === 'all' ? 'Semua' : st === 'unpaid' ? 'Belum Bayar' : 'Lunas'}
+              <LayoutGrid className="w-3.5 h-3.5" />
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('table')}
+              title="Tampilan Baris"
+              aria-label="Tampilan Baris"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Bills Cards (Mobile App First) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {filteredBills.map((bill) => {
-          const isPaid = bill.status === 'paid';
-          return (
-            <div
-              key={bill.id}
-              className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                      {bill.receiptNumber}
+      {/* View Mode: Kotak-kotak (Grid Cards) */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {filteredBills.map((bill) => {
+            const isPaid = bill.status === 'paid';
+            return (
+              <div
+                key={bill.id}
+                className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                        {bill.receiptNumber}
+                      </span>
+                      <h3 className="font-bold text-slate-900 text-base mt-1">{bill.studentName}</h3>
+                      <p className="text-xs text-slate-500 font-medium">{bill.bimbelType}</p>
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
+                        isPaid
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                    >
+                      {isPaid ? '✓ LUNAS' : 'BELUM BAYAR'}
                     </span>
-                    <h3 className="font-bold text-slate-900 text-base mt-1">{bill.studentName}</h3>
-                    <p className="text-xs text-slate-500 font-medium">{bill.bimbelType}</p>
                   </div>
 
-                  <span
-                    className={`px-2 py-0.5 text-[11px] font-bold rounded-full ${
-                      isPaid
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}
+                  <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Periode:</span>
+                      <span className="text-slate-700 font-medium truncate max-w-[170px]">
+                        {bill.weekPeriod}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Kehadiran Sesi:</span>
+                      <span className="text-slate-900 font-semibold">{bill.attendanceCount} Hari Masuk</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tarif Satuan:</span>
+                      <span className="font-mono text-slate-700">{formatRupiah(bill.ratePerDay)}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="font-bold text-slate-800">Total Tagihan:</span>
+                      <span className="font-mono font-extrabold text-indigo-600 text-sm">
+                        {formatRupiah(bill.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                  {/* Print Slip Button */}
+                  <button
+                    onClick={() => setActiveSlip(bill)}
+                    className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs border border-slate-200 transition-all"
                   >
-                    {isPaid ? '✓ LUNAS' : 'BELUM BAYAR'}
-                  </span>
-                </div>
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Lihat Slip</span>
+                  </button>
 
-                <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Periode:</span>
-                    <span className="text-slate-700 font-medium truncate max-w-[170px]">
-                      {bill.weekPeriod}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Kehadiran Sesi:</span>
-                    <span className="text-slate-900 font-semibold">{bill.attendanceCount} Hari Masuk</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Tarif Satuan:</span>
-                    <span className="font-mono text-slate-700">{formatRupiah(bill.ratePerDay)}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">Total Tagihan:</span>
-                    <span className="font-mono font-extrabold text-indigo-600 text-sm">
-                      {formatRupiah(bill.totalAmount)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                  {/* WhatsApp Slip Link */}
+                  <a
+                    href={createWhatsAppLink(
+                      bill.parentPhone,
+                      `Halo Bapak/Ibu ${bill.parentName || 'Wali'}, berikut rincian tagihan bimbel ananda ${bill.studentName} untuk ${bill.weekPeriod}. Total tagihan: ${formatRupiah(bill.totalAmount)} (${bill.attendanceCount}x sesi masuk). Status: ${isPaid ? 'LUNAS (Terima Kasih)' : 'Menunggu pembayaran jatuh tempo hari Kamis'}. Terima kasih - Belajar Alhidayah.`
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all"
+                    title="Kirim ke WhatsApp Wali"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </a>
 
-              {/* Action Buttons */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                {/* Print Slip Button */}
-                <button
-                  onClick={() => setActiveSlip(bill)}
-                  className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs border border-slate-200 transition-all"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Lihat Slip</span>
-                </button>
-
-                {/* WhatsApp Slip Link */}
-                <a
-                  href={createWhatsAppLink(
-                    bill.parentPhone,
-                    `Halo Bapak/Ibu ${bill.parentName || 'Wali'}, berikut rincian tagihan bimbel ananda ${bill.studentName} untuk ${bill.weekPeriod}. Total tagihan: ${formatRupiah(bill.totalAmount)} (${bill.attendanceCount}x sesi masuk). Status: ${isPaid ? 'LUNAS (Terima Kasih)' : 'Menunggu pembayaran jatuh tempo hari Kamis'}. Terima kasih - BimbelSmart.`
+                  {/* Edit Bill Status Button */}
+                  {canManage && (
+                    <button
+                      onClick={() => handleOpenEditBill(bill)}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                      title="Edit Status & Data Tagihan"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                   )}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all"
-                  title="Kirim ke WhatsApp Wali"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                </a>
 
-                {/* Edit Bill Status Button */}
-                {canManage && (
-                  <button
-                    onClick={() => handleOpenEditBill(bill)}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                    title="Edit Status & Data Tagihan"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                )}
+                  {/* Delete button */}
+                  {canManage && onDeleteBill && (
+                    <button
+                      onClick={() => setBillToDelete(bill)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                      title="Hapus Tagihan"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
 
-                {/* Delete button */}
-                {canManage && onDeleteBill && (
-                  <button
-                    onClick={() => setBillToDelete(bill)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                    title="Hapus Tagihan"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-
-                {/* Mark as paid button */}
-                {canManage && !isPaid && (
-                  <button
-                    onClick={() => setPaymentMethodModal(bill)}
-                    className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-2xs transition-all"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Tandai Lunas</span>
-                  </button>
-                )}
+                  {/* Mark as paid button */}
+                  {canManage && !isPaid && (
+                    <button
+                      onClick={() => setPaymentMethodModal(bill)}
+                      className="flex-1 flex items-center justify-center space-x-1 py-2 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-2xs transition-all"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>Tandai Lunas</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {filteredBills.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-            <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-semibold text-slate-600">Tidak ada data tagihan</p>
-            <p className="mt-0.5">Klik 'Generate Tagihan Minggu Ini' untuk menghitung otomatis dari absensi</p>
+          {filteredBills.length === 0 && (
+            <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+              <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">Tidak ada data tagihan</p>
+              <p className="mt-0.5">Klik 'Generate Tagihan Minggu Ini' untuk menghitung otomatis dari absensi</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* View Mode: Baris-baris (Tabel) */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">No. Kuitansi</th>
+                  <th className="py-3.5 px-4">Nama Siswa</th>
+                  <th className="py-3.5 px-4">Jenis Bimbel</th>
+                  <th className="py-3.5 px-4">Periode</th>
+                  <th className="py-3.5 px-4">Kehadiran</th>
+                  <th className="py-3.5 px-4">Tarif</th>
+                  <th className="py-3.5 px-4">Total Tagihan</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {filteredBills.map((bill) => {
+                  const isPaid = bill.status === 'paid';
+                  return (
+                    <tr key={bill.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-mono text-[10px] font-bold text-slate-500">
+                        {bill.receiptNumber}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {bill.studentName}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded-md">
+                          {bill.bimbelType}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 truncate max-w-[150px]">
+                        {bill.weekPeriod}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {bill.attendanceCount} Hari
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600">
+                        {formatRupiah(bill.ratePerDay)}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600">
+                        {formatRupiah(bill.totalAmount)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            isPaid
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {isPaid ? 'LUNAS' : 'BELUM'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => setActiveSlip(bill)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all"
+                            title="Lihat Kuitansi / Slip"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                          <a
+                            href={createWhatsAppLink(
+                              bill.parentPhone,
+                              `Halo Bapak/Ibu ${bill.parentName || 'Wali'}, berikut rincian tagihan bimbel ananda ${bill.studentName} untuk ${bill.weekPeriod}. Total tagihan: ${formatRupiah(bill.totalAmount)} (${bill.attendanceCount}x sesi masuk). Status: ${isPaid ? 'LUNAS (Terima Kasih)' : 'Menunggu pembayaran jatuh tempo hari Kamis'}. Terima kasih - Belajar Alhidayah.`
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition-all"
+                            title="Kirim ke WhatsApp Wali"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+                          {canManage && (
+                            <button
+                              onClick={() => handleOpenEditBill(bill)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Edit Status & Data Tagihan"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canManage && onDeleteBill && (
+                            <button
+                              onClick={() => setBillToDelete(bill)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              title="Hapus Tagihan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canManage && !isPaid && (
+                            <button
+                              onClick={() => setPaymentMethodModal(bill)}
+                              className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[10px] shadow-2xs transition-all flex items-center space-x-1"
+                              title="Tandai Lunas"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Lunas</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+
+          {filteredBills.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">Tidak ada data tagihan</p>
+              <p className="mt-0.5">Klik 'Generate Tagihan Minggu Ini' untuk menghitung otomatis dari absensi</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* MODAL PILIH METODE BAYAR */}
       {paymentMethodModal && (
@@ -511,12 +680,21 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
             <div className="p-6 printable-card bg-white text-slate-900 space-y-4 font-sans">
               {/* Slip Header */}
               <div className="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight uppercase text-indigo-900">
-                    {settings.bimbelName}
-                  </h2>
-                  <p className="text-[11px] text-slate-500">{settings.tagline}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{settings.address} • Telp: {settings.phone}</p>
+                <div className="flex items-center space-x-3">
+                  {settings.logoUrl && (
+                    <img
+                      src={settings.logoUrl}
+                      alt={settings.bimbelName}
+                      className="w-12 h-12 rounded-lg object-contain border border-slate-200 p-0.5 shrink-0 bg-white"
+                    />
+                  )}
+                  <div>
+                    <h2 className="text-lg font-black tracking-tight uppercase text-indigo-900">
+                      {settings.bimbelName}
+                    </h2>
+                    <p className="text-[11px] text-slate-500">{settings.tagline}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{settings.address} • Telp: {settings.phone}</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className="inline-block px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 rounded border border-slate-200">

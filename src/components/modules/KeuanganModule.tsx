@@ -15,6 +15,8 @@ import {
   DollarSign,
   Receipt,
   Sparkles,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
 import { FinancialTransaction, UserRole } from '../../types/bimbel';
 import { formatRupiah, formatDateIndo } from '../../utils/formatters';
@@ -42,6 +44,16 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'pemasukan' | 'pengeluaran'>('pemasukan');
   const [trxToDelete, setTrxToDelete] = useState<FinancialTransaction | null>(null);
+
+  // View Mode: 'table' (baris-baris) or 'grid' (kotak-kotak)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
+    return (localStorage.getItem('bimbel_keuangan_view') as 'table' | 'grid') || 'table';
+  });
+
+  const handleSetViewMode = (mode: 'table' | 'grid') => {
+    setViewMode(mode);
+    localStorage.setItem('bimbel_keuangan_view', mode);
+  };
 
   // Form State
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
@@ -261,8 +273,8 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
         {/* Content View */}
         {activeTab !== 'grafik' ? (
           <div className="p-4 sm:p-5 space-y-4">
-            {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row gap-2.5">
+            {/* Filter Bar and View Mode Toggle */}
+            <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -274,110 +286,226 @@ export const KeuanganModule: React.FC<KeuanganModuleProps> = ({
                 />
               </div>
 
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:border-indigo-500 outline-none"
-              />
+              <div className="flex items-center justify-between sm:justify-end gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:border-indigo-500 outline-none shrink-0"
+                />
 
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-medium focus:border-indigo-500 outline-none"
-              >
-                <option value="all">Semua Kategori</option>
-                {Array.from(new Set([...PEMASUKAN_CATEGORIES, ...PENGELUARAN_CATEGORIES])).map(
-                  (c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  )
-                )}
-              </select>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-medium focus:border-indigo-500 outline-none shrink-0"
+                >
+                  <option value="all">Semua Kategori</option>
+                  {Array.from(new Set([...PEMASUKAN_CATEGORIES, ...PENGELUARAN_CATEGORIES])).map(
+                    (c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                {/* Toggle Kotak (Grid) vs Baris (Tabel) - Compact Icon-only */}
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode('grid')}
+                    title="Tampilan Kotak"
+                    aria-label="Tampilan Kotak"
+                    className={`p-1.5 rounded-md transition-all ${
+                      viewMode === 'grid'
+                        ? 'bg-white text-indigo-600 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-700'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode('table')}
+                    title="Tampilan Baris"
+                    aria-label="Tampilan Baris"
+                    className={`p-1.5 rounded-md transition-all ${
+                      viewMode === 'table'
+                        ? 'bg-white text-indigo-600 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-700'
+                    }`}
+                  >
+                    <LayoutList className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Transaction List (Mobile Cards) */}
-            <div className="space-y-2.5">
-              {filteredTransactions.map((trx) => {
-                const isIncome = trx.type === 'pemasukan';
-                return (
-                  <div
-                    key={trx.id}
-                    className="p-3.5 rounded-2xl border border-slate-100 bg-white hover:bg-slate-50/70 transition-all flex items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          isIncome
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-rose-50 text-rose-600 border border-rose-100'
-                        }`}
-                      >
-                        {isIncome ? (
-                          <ArrowDownLeft className="w-5 h-5" />
-                        ) : (
-                          <ArrowUpRight className="w-5 h-5" />
-                        )}
-                      </div>
-
+            {/* View Mode: Kotak-kotak (Grid Cards) */}
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredTransactions.map((trx) => {
+                  const isIncome = trx.type === 'pemasukan';
+                  return (
+                    <div
+                      key={trx.id}
+                      className="p-4 rounded-2xl border border-slate-200/90 bg-white hover:shadow-md transition-all flex flex-col justify-between"
+                    >
                       <div>
-                        <div className="flex items-center space-x-2">
-                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
-                            {trx.description}
-                          </h4>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                isIncome
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                  : 'bg-rose-50 text-rose-600 border border-rose-100'
+                              }`}
+                            >
+                              {isIncome ? (
+                                <ArrowDownLeft className="w-4 h-4" />
+                              ) : (
+                                <ArrowUpRight className="w-4 h-4" />
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {trx.id}
+                              </span>
+                              <span
+                                className={`ml-1.5 px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  isIncome
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-rose-50 text-rose-700'
+                                }`}
+                              >
+                                {trx.category}
+                              </span>
+                            </div>
+                          </div>
+
                           <span
-                            className={`px-2 py-0.2 rounded text-[10px] font-semibold ${
-                              isIncome
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-rose-50 text-rose-700'
+                            className={`font-mono font-extrabold text-sm ${
+                              isIncome ? 'text-emerald-600' : 'text-rose-600'
                             }`}
                           >
-                            {trx.category}
+                            {isIncome ? '+' : '-'} {formatRupiah(trx.amount)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {formatDateIndo(trx.date)} • {trx.paymentMethod} • dicatat oleh @
-                          {trx.createdBy}
+
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm mt-2.5">
+                          {trx.description}
                         </p>
                       </div>
-                    </div>
 
-                    <div className="flex items-center space-x-3">
-                      <div className="text-right">
-                        <span
-                          className={`font-mono font-extrabold text-sm sm:text-base ${
-                            isIncome ? 'text-emerald-600' : 'text-rose-600'
-                          }`}
-                        >
-                          {isIncome ? '+' : '-'} {formatRupiah(trx.amount)}
-                        </span>
-                        <span className="block text-[10px] text-slate-400 font-mono">
-                          {trx.id}
-                        </span>
+                      <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>{formatDateIndo(trx.date)} • {trx.paymentMethod}</span>
+                        {canEdit && onDeleteTransaction && (
+                          <button
+                            onClick={() => setTrxToDelete(trx)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-all"
+                            title="Hapus Transaksi"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-
-                      {canEdit && onDeleteTransaction && (
-                        <button
-                          onClick={() => setTrxToDelete(trx)}
-                          className="p-1.5 text-slate-300 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-all"
-                          title="Hapus Transaksi"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {filteredTransactions.length === 0 && (
-                <div className="py-12 text-center text-slate-400 text-xs">
-                  <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  <p className="font-semibold text-slate-600">Tidak ada catatan transaksi</p>
+                {filteredTransactions.length === 0 && (
+                  <div className="col-span-full py-12 text-center text-slate-400 text-xs">
+                    <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">Tidak ada catatan transaksi</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* View Mode: Baris-baris (Tabel Transaksi) */
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3 px-4">ID & Tanggal</th>
+                        <th className="py-3 px-4">Kategori</th>
+                        <th className="py-3 px-4">Keterangan</th>
+                        <th className="py-3 px-4">Metode</th>
+                        <th className="py-3 px-4">Dicatat Oleh</th>
+                        <th className="py-3 px-4 text-right">Nominal</th>
+                        {canEdit && <th className="py-3 px-4 text-right">Aksi</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      {filteredTransactions.map((trx) => {
+                        const isIncome = trx.type === 'pemasukan';
+                        return (
+                          <tr key={trx.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3 px-4">
+                              <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded mr-1.5">
+                                {trx.id}
+                              </span>
+                              <span className="font-medium text-slate-600">
+                                {formatDateIndo(trx.date)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  isIncome
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-rose-50 text-rose-700'
+                                }`}
+                              >
+                                {trx.category}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              {trx.description}
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">
+                              {trx.paymentMethod}
+                            </td>
+                            <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                              @{trx.createdBy}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span
+                                className={`font-mono font-extrabold text-xs sm:text-sm ${
+                                  isIncome ? 'text-emerald-600' : 'text-rose-600'
+                                }`}
+                              >
+                                {isIncome ? '+' : '-'} {formatRupiah(trx.amount)}
+                              </span>
+                            </td>
+                            {canEdit && (
+                              <td className="py-3 px-4 text-right">
+                                {onDeleteTransaction && (
+                                  <button
+                                    onClick={() => setTrxToDelete(trx)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                    title="Hapus Transaksi"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </div>
+
+                {filteredTransactions.length === 0 && (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-600">Tidak ada catatan transaksi</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           /* GRAFIK & ANALISIS KEUANGAN */

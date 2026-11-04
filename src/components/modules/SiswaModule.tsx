@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Users,
   UserPlus,
@@ -12,6 +12,10 @@ import {
   CheckCircle,
   GraduationCap,
   Sparkles,
+  LayoutGrid,
+  LayoutList,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Student, BimbelType, UserRole } from '../../types/bimbel';
 import { createWhatsAppLink } from '../../utils/formatters';
@@ -35,6 +39,25 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+
+  // View Mode: 'grid' (kotak-kotak) or 'table' (baris-baris)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    return (localStorage.getItem('bimbel_siswa_view') as 'grid' | 'table') || 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    localStorage.setItem('bimbel_siswa_view', mode);
+  };
+
+  // Horizontal scroll ref and handler for filter bar
+  const filterContainerRef = useRef<HTMLDivElement>(null);
+  const scrollFilters = (direction: 'left' | 'right') => {
+    if (filterContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -150 : 150;
+      filterContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   // Form State
   const [formName, setFormName] = useState('');
@@ -185,8 +208,8 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
         )}
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
+      {/* Search Bar and View Mode Toggle (Row 1) */}
+      <div className="flex items-center gap-2.5">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -198,115 +221,300 @@ export const SiswaModule: React.FC<SiswaModuleProps> = ({
           />
         </div>
 
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {['all', 'Kelompok', 'Privat 3', 'Privat 1', 'Home Visit'].map((type) => (
-            <button
-              key={type}
-              onClick={() => setSelectedBimbelType(type)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedBimbelType === type
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {type === 'all' ? 'Semua Jenis' : type}
-            </button>
-          ))}
+        {/* Toggle Kotak (Grid) vs Baris (Tabel) */}
+        <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('grid')}
+            title="Tampilan Kotak"
+            aria-label="Tampilan Kotak"
+            className={`p-1.5 rounded-md transition-all ${
+              viewMode === 'grid'
+                ? 'bg-white text-indigo-600 shadow-2xs'
+                : 'text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('table')}
+            title="Tampilan Baris"
+            aria-label="Tampilan Baris"
+            className={`p-1.5 rounded-md transition-all ${
+              viewMode === 'table'
+                ? 'bg-white text-indigo-600 shadow-2xs'
+                : 'text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <LayoutList className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Students Card List - Mobile App First */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {filteredStudents.map((student) => (
-          <div
-            key={student.id}
-            className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative group"
-          >
-            <div>
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                    {student.id}
+      {/* Filter Jenis Bimbel (Row 2): Fit across screen on desktop/tablet, smooth scroll with arrows on mobile */}
+      <div className="relative flex items-center w-full bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs">
+        {/* Tombol Geser Kiri (Mobile) */}
+        <button
+          type="button"
+          onClick={() => scrollFilters('left')}
+          title="Geser filter ke kiri"
+          aria-label="Geser filter ke kiri"
+          className="sm:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {/* Scrollable Container / Grid on Desktop */}
+        <div
+          ref={filterContainerRef}
+          onWheel={(e) => {
+            if (filterContainerRef.current) {
+              filterContainerRef.current.scrollLeft += e.deltaY;
+            }
+          }}
+          className="flex items-center sm:grid sm:grid-cols-5 gap-1.5 overflow-x-auto scroll-smooth overscroll-x-contain touch-pan-x scrollbar-none py-0.5 px-1 w-full"
+        >
+          {(['all', 'Kelompok', 'Privat 3', 'Privat 1', 'Home Visit'] as const).map((type) => {
+            const isSelected = selectedBimbelType === type;
+            const count =
+              type === 'all'
+                ? students.length
+                : students.filter((s) => s.bimbelType === type).length;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setSelectedBimbelType(type)}
+                className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 sm:shrink transition-all select-none cursor-pointer ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                }`}
+              >
+                <span>{type === 'all' ? 'Semua' : type}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                    isSelected
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tombol Geser Kanan (Mobile) */}
+        <button
+          type="button"
+          onClick={() => scrollFilters('right')}
+          title="Geser filter ke kanan"
+          aria-label="Geser filter ke kanan"
+          className="sm:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* View Mode: Kotak-kotak (Grid Cards) */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {filteredStudents.map((student) => (
+            <div
+              key={student.id}
+              className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between relative group"
+            >
+              <div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                      {student.id}
+                    </span>
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5">
+                      {student.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">{student.grade}</p>
+                  </div>
+
+                  <span
+                    className={`px-2 py-1 text-[11px] font-bold rounded-lg border ${getBimbelTypeBadge(
+                      student.bimbelType
+                    )}`}
+                  >
+                    {student.bimbelType}
                   </span>
-                  <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5">
-                    {student.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">{student.grade}</p>
                 </div>
 
-                <span
-                  className={`px-2 py-1 text-[11px] font-bold rounded-lg border ${getBimbelTypeBadge(
-                    student.bimbelType
-                  )}`}
-                >
-                  {student.bimbelType}
-                </span>
+                {/* Detail Info */}
+                <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="text-slate-400">Wali:</span>
+                    <span className="font-medium text-slate-800">{student.parentName || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-600">
+                    <span className="text-slate-400">No. HP Wali:</span>
+                    <span className="font-mono text-slate-800 font-medium">{student.parentPhone}</span>
+                  </div>
+                  {student.address && (
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span className="text-slate-400">Alamat:</span>
+                      <span className="text-slate-700 truncate max-w-[170px]">{student.address}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Detail Info */}
-              <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-600">
-                  <span className="text-slate-400">Wali:</span>
-                  <span className="font-medium text-slate-800">{student.parentName || '-'}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span className="text-slate-400">No. HP Wali:</span>
-                  <span className="font-mono text-slate-800 font-medium">{student.parentPhone}</span>
-                </div>
-                {student.address && (
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span className="text-slate-400">Alamat:</span>
-                    <span className="text-slate-700 truncate max-w-[170px]">{student.address}</span>
+              {/* Actions */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <a
+                  href={createWhatsAppLink(
+                    student.parentPhone,
+                    `Halo Bapak/Ibu ${student.parentName || 'Wali'}, kami dari Belajar Alhidayah ingin menginformasikan mengenai kegiatan bimbel ananda ${student.name}.`
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-semibold text-xs transition-all border border-emerald-200"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Chat WA</span>
+                </a>
+
+                {canEdit && (
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => handleOpenEdit(student)}
+                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                      title="Edit Data Siswa"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setStudentToDelete(student)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                      title="Hapus Siswa"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
             </div>
+          ))}
 
-            {/* Actions */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-              <a
-                href={createWhatsAppLink(
-                  student.parentPhone,
-                  `Halo Bapak/Ibu ${student.parentName || 'Wali'}, kami dari BimbelSmart ingin menginformasikan mengenai kegiatan bimbel ananda ${student.name}.`
-                )}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-semibold text-xs transition-all border border-emerald-200"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>Chat WA</span>
-              </a>
-
-              {canEdit && (
-                <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => handleOpenEdit(student)}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                    title="Edit Data Siswa"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setStudentToDelete(student)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                    title="Hapus Siswa"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+          {filteredStudents.length === 0 && (
+            <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+              <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">Tidak ada data siswa ditemukan</p>
+              <p className="mt-0.5">Coba sesuaikan kata kunci pencarian atau filter jenis bimbel</p>
             </div>
+          )}
+        </div>
+      ) : (
+        /* View Mode: Baris-baris (Tabel) */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">ID & Nama Siswa</th>
+                  <th className="py-3.5 px-4">Jenjang</th>
+                  <th className="py-3.5 px-4">Jenis Bimbel</th>
+                  <th className="py-3.5 px-4">Wali Murid</th>
+                  <th className="py-3.5 px-4">No. HP Wali</th>
+                  <th className="py-3.5 px-4">Alamat</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {filteredStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="font-mono text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                          {student.id}
+                        </span>
+                        <span className="font-bold text-slate-900">{student.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-600">
+                      {student.grade || '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-0.5 text-[11px] font-bold rounded-lg border ${getBimbelTypeBadge(student.bimbelType)}`}>
+                        {student.bimbelType}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-800">
+                      {student.parentName || '-'}
+                    </td>
+                    <td className="py-3 px-4 font-mono font-medium text-slate-700">
+                      {student.parentPhone}
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 truncate max-w-[150px]">
+                      {student.address || '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                        student.status === 'active'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}>
+                        {student.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end space-x-1">
+                        <a
+                          href={createWhatsAppLink(
+                            student.parentPhone,
+                            `Halo Bapak/Ibu ${student.parentName || 'Wali'}, kami dari Belajar Alhidayah ingin menginformasikan mengenai kegiatan bimbel ananda ${student.name}.`
+                          )}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all border border-emerald-200"
+                          title="Chat WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                        {canEdit && (
+                          <>
+                            <button
+                              onClick={() => handleOpenEdit(student)}
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Edit Data Siswa"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setStudentToDelete(student)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              title="Hapus Siswa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
 
-        {filteredStudents.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-            <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-semibold text-slate-600">Tidak ada data siswa ditemukan</p>
-            <p className="mt-0.5">Coba sesuaikan kata kunci pencarian atau filter jenis bimbel</p>
-          </div>
-        )}
-      </div>
+          {filteredStudents.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">Tidak ada data siswa ditemukan</p>
+              <p className="mt-0.5">Coba sesuaikan kata kunci pencarian atau filter jenis bimbel</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal Add / Edit Siswa */}
       {isModalOpen && (

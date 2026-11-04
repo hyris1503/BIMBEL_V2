@@ -20,10 +20,13 @@ export const DEFAULT_SESSIONS = [
 ];
 
 export const DEFAULT_SETTINGS: BimbelPricingSettings = {
-  bimbelName: 'BimbelSmart',
+  bimbelName: 'Belajar Alhidayah',
   tagline: 'Sistem Terpadu Bimbingan Belajar',
   address: 'Jl. Pendidikan No. 42',
   phone: '081234567890',
+  logoUrl: '',
+  supabaseStorageBucket: 'bimbel-photos',
+  photoStorageFolder: 'photos',
   kelompokPrice: 20000,
   privat3Price: 45000,
   privat1Price: 75000,
@@ -204,6 +207,9 @@ export class BimbelService {
           tagline: s.tagline || settings.tagline,
           address: s.address || settings.address,
           phone: s.phone || settings.phone,
+          logoUrl: s.logo_url ?? settings.logoUrl,
+          supabaseStorageBucket: s.supabase_storage_bucket ?? settings.supabaseStorageBucket,
+          photoStorageFolder: s.photo_storage_folder ?? settings.photoStorageFolder,
           kelompokPrice: Number(s.kelompok_price ?? settings.kelompokPrice),
           privat3Price: Number(s.privat3_price ?? settings.privat3Price),
           privat1Price: Number(s.privat1_price ?? settings.privat1Price),
@@ -864,6 +870,9 @@ export class BimbelService {
           tagline: settings.tagline,
           address: settings.address,
           phone: settings.phone,
+          logo_url: settings.logoUrl || null,
+          supabase_storage_bucket: settings.supabaseStorageBucket || 'bimbel-photos',
+          photo_storage_folder: settings.photoStorageFolder || 'photos',
           kelompok_price: settings.kelompokPrice,
           privat3_price: settings.privat3Price,
           privat1_price: settings.privat1Price,
@@ -873,7 +882,7 @@ export class BimbelService {
           sessions: settings.sessions,
         });
       } catch (e) {
-        // Fallback without sessions column if not yet added in Supabase schema
+        // Fallback without newer columns if not yet migrated in Supabase
         try {
           await client.from('bimbel_settings').upsert({
             id: 1,

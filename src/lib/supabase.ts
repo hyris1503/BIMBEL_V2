@@ -218,13 +218,16 @@ CREATE TABLE IF NOT EXISTS student_bills (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. PENGATURAN HARGA BIMBEL
+-- 9. PENGATURAN HARGA BIMBEL, LOGO & PENYIMPANAN
 CREATE TABLE IF NOT EXISTS bimbel_settings (
   id INT PRIMARY KEY DEFAULT 1,
-  bimbel_name TEXT DEFAULT 'Bimbel Prestasi Cerdas',
-  tagline TEXT DEFAULT 'Membimbing Prestasi, Meraih Cita-Cita',
-  address TEXT DEFAULT 'Jl. Pendidikan No. 45, Kompleks Pelajar',
+  bimbel_name TEXT DEFAULT 'BimbelSmart',
+  tagline TEXT DEFAULT 'Sistem Terpadu Bimbingan Belajar',
+  address TEXT DEFAULT 'Jl. Pendidikan No. 42',
   phone TEXT DEFAULT '081234567890',
+  logo_url TEXT,
+  supabase_storage_bucket TEXT DEFAULT 'bimbel-photos',
+  photo_storage_folder TEXT DEFAULT 'photos',
   kelompok_price NUMERIC DEFAULT 20000,
   privat3_price NUMERIC DEFAULT 45000,
   privat1_price NUMERIC DEFAULT 75000,
@@ -233,6 +236,13 @@ CREATE TABLE IF NOT EXISTS bimbel_settings (
   tutor_increment_per_student NUMERIC DEFAULT 1000,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migrasi kolom logo & foto jika tabel bimbel_settings, students, tutors sudah ada
+ALTER TABLE bimbel_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE bimbel_settings ADD COLUMN IF NOT EXISTS supabase_storage_bucket TEXT DEFAULT 'bimbel-photos';
+ALTER TABLE bimbel_settings ADD COLUMN IF NOT EXISTS photo_storage_folder TEXT DEFAULT 'photos';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE tutors ADD COLUMN IF NOT EXISTS photo_url TEXT;
 
 -- 10. TABEL SESI PEMBELAJARAN (Custom Jam & Jumlah Sesi untuk Modul Jadwal & Absensi)
 CREATE TABLE IF NOT EXISTS bimbel_sessions (
@@ -256,7 +266,23 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE schedules DROP CONSTRAINT IF EXISTS schedules_session_id_check;
 ALTER TABLE schedules ADD CONSTRAINT schedules_session_id_check CHECK (session_id >= 1);
 
--- 11. ROW LEVEL SECURITY (RLS) - Buka akses anon untuk API Key
+-- 11. SETUP BUCKET PENYIMPANAN FOTO & LOGO SUPABASE (Storage)
+-- Jalankan blok berikut untuk otomatis membuat bucket 'bimbel-photos' menjadi publik:
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('bimbel-photos', 'bimbel-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Kebijakan Akses Publik untuk Bucket bimbel-photos:
+DROP POLICY IF EXISTS "Public Select bimbel-photos" ON storage.objects;
+CREATE POLICY "Public Select bimbel-photos" ON storage.objects FOR SELECT USING (bucket_id = 'bimbel-photos');
+
+DROP POLICY IF EXISTS "Public Insert bimbel-photos" ON storage.objects;
+CREATE POLICY "Public Insert bimbel-photos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'bimbel-photos');
+
+DROP POLICY IF EXISTS "Public Update bimbel-photos" ON storage.objects;
+CREATE POLICY "Public Update bimbel-photos" ON storage.objects FOR UPDATE USING (bucket_id = 'bimbel-photos');
+
+-- 12. ROW LEVEL SECURITY (RLS) - Buka akses anon untuk API Key
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tutors ENABLE ROW LEVEL SECURITY;

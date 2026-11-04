@@ -15,11 +15,15 @@ interface LoginModalProps {
   isOpen: boolean;
   onLoginSuccess: (user: UserAccount) => void;
   users?: UserAccount[];
+  logoUrl?: string;
+  bimbelName?: string;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onLoginSuccess,
+  logoUrl,
+  bimbelName,
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -53,10 +57,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-blue-600 p-6 text-white text-center relative">
-          <div className="w-14 h-14 bg-white/10 rounded-2xl backdrop-blur-xs border border-white/20 flex items-center justify-center mx-auto mb-3 shadow-lg">
-            <GraduationCap className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-white rounded-2xl p-1.5 flex items-center justify-center mx-auto mb-3 shadow-lg overflow-hidden">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={bimbelName || 'Logo Bimbel'}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="w-full h-full bg-indigo-600 rounded-xl flex items-center justify-center">
+                <GraduationCap className="w-8 h-8 text-white" />
+              </div>
+            )}
           </div>
-          <h2 className="text-xl font-bold tracking-tight">BimbelSmart</h2>
+          <h2 className="text-xl font-bold tracking-tight">{bimbelName || 'BimbelSmart'}</h2>
           <p className="text-xs text-indigo-100 mt-1">
             Masuk ke Akun Sistem
           </p>

@@ -26,6 +26,7 @@ export interface Student {
   status: 'active' | 'inactive';
   joinedAt: string;
   notes?: string;
+  photoUrl?: string;
 }
 
 export interface Tutor {
@@ -37,6 +38,7 @@ export interface Tutor {
   transport: number; // uang transport
   status: 'active' | 'inactive';
   accountUsername?: string;
+  photoUrl?: string;
 }
 
 export interface SessionConfig {
@@ -140,6 +142,9 @@ export interface BimbelPricingSettings {
   tagline: string;
   address: string;
   phone: string;
+  logoUrl?: string; // Data URL Base64 atau URL Publik Supabase Storage
+  supabaseStorageBucket?: string; // Default: 'bimbel-photos'
+  photoStorageFolder?: string; // Default: 'photos'
   kelompokPrice: number;
   privat3Price: number;
   privat1Price: number;

@@ -477,7 +477,7 @@ export default function App() {
   const currentTutorName = currentTutor?.name || currentUser?.name || currentUser?.username;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans pb-20 md:pb-8">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans pb-20 md:pb-8 overflow-x-hidden w-full max-w-full">
       {/* Navbar with brand, role switcher, dark mode toggle, and database status */}
       <Navbar
         currentUser={currentUser}
@@ -487,6 +487,8 @@ export default function App() {
         supabaseConnected={supabaseConnected}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        logoUrl={settings.logoUrl}
+        bimbelName={settings.bimbelName}
       />
 
       {/* Main Navigation (Tabs for Desktop, Bottom Bar for Mobile) */}
@@ -706,6 +708,8 @@ export default function App() {
           setIsLoginModalOpen(false);
         }}
         users={users}
+        logoUrl={settings.logoUrl}
+        bimbelName={settings.bimbelName}
       />
     </div>
   );

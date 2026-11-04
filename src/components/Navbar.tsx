@@ -16,6 +16,8 @@ interface NavbarProps {
   supabaseConnected: boolean;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  logoUrl?: string;
+  bimbelName?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   supabaseConnected,
   isDarkMode,
   onToggleDarkMode,
+  logoUrl,
+  bimbelName,
 }) => {
   const getRoleBadge = (role?: UserRole) => {
     switch (role) {
@@ -68,19 +72,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-3 cursor-pointer select-none group transition-transform active:scale-95"
             title="Kembali ke Beranda"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:from-indigo-700 group-hover:to-blue-600 transition-all">
-              <GraduationCap className="w-6 h-6" />
-            </div>
-            <div>
+            {logoUrl ? (
+              <div className="w-10 h-10 rounded-xl bg-white p-1 border border-slate-200/80 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={logoUrl}
+                  alt={bimbelName || 'Logo Bimbel'}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:from-indigo-700 group-hover:to-blue-600 transition-all shrink-0">
+                <GraduationCap className="w-6 h-6" />
+              </div>
+            )}
+            <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <span className="font-extrabold text-slate-900 tracking-tight text-lg group-hover:text-indigo-600 transition-colors">
-                  Bimbel<span className="text-indigo-600">Smart</span>
+                <span
+                  title={bimbelName || 'BimbelSmart'}
+                  className="font-bold text-slate-900 dark:text-white tracking-tight text-sm sm:text-base leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[180px] sm:max-w-[260px] md:max-w-xs"
+                >
+                  {bimbelName || (
+                    <>
+                      Bimbel<span className="text-indigo-600 dark:text-indigo-400">Smart</span>
+                    </>
+                  )}
                 </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/60">
+                <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-200/60 dark:border-indigo-800 shrink-0">
                   Pro
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block truncate">
                 Sistem Terpadu Bimbingan Belajar
               </p>
             </div>

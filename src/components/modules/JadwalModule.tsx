@@ -7,6 +7,8 @@ import {
   Edit2,
   Trash2,
   X,
+  LayoutGrid,
+  LayoutList,
 } from 'lucide-react';
 import {
   ScheduleItem,
@@ -48,6 +50,16 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
   const [scheduleToDelete, setScheduleToDelete] = useState<ScheduleItem | null>(null);
+
+  // View Mode: 'grid' (kotak-kotak) or 'table' (baris-baris)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    return (localStorage.getItem('bimbel_jadwal_view') as 'grid' | 'table') || 'grid';
+  });
+
+  const handleSetViewMode = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    localStorage.setItem('bimbel_jadwal_view', mode);
+  };
 
   // Form State
   const [formDay, setFormDay] = useState<DayOfWeek>('Senin');
@@ -153,22 +165,6 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Role Notice Banner for Guru */}
-      {userRole === 'guru' && (
-        <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-4 py-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md text-[10px]">
-              AKUN GURU
-            </span>
-            <span>
-              Menampilkan jadwal mengajar pribadi untuk <strong>{currentTutorName || 'Guru Pengajar'}</strong>
-            </span>
-          </div>
-          <span className="text-[11px] text-indigo-600 font-semibold">
-            Hubungi Admin jika terdapat perubahan jadwal
-          </span>
-        </div>
-      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -188,15 +184,47 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
           </p>
         </div>
 
-        {canEdit && (
-          <button
-            onClick={() => handleOpenAdd()}
-            className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tambah Jadwal Baru</span>
-          </button>
-        )}
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {/* Toggle Kotak (Grid) vs Baris (Tabel) - Compact Icon-only */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              title="Tampilan Kotak"
+              aria-label="Tampilan Kotak"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('table')}
+              title="Tampilan Baris"
+              aria-label="Tampilan Baris"
+              className={`p-1.5 rounded-md transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white text-indigo-600 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {canEdit && (
+            <button
+              onClick={() => handleOpenAdd()}
+              className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tambah Jadwal Baru</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Day Selector Tabs (Senin - Kamis) */}
@@ -227,131 +255,244 @@ export const JadwalModule: React.FC<JadwalModuleProps> = ({
         })}
       </div>
 
-      {/* Sessions View for Selected Day */}
-      <div className="space-y-3.5">
-        {activeSessions.map((session) => {
-          const sessionSchedules = filteredSchedules.filter((s) => s.sessionId === session.id);
+      {/* View Mode: Kotak-kotak (Grid per Sesi) */}
+      {viewMode === 'grid' ? (
+        <div className="space-y-3.5">
+          {activeSessions.map((session) => {
+            const sessionSchedules = filteredSchedules.filter((s) => s.sessionId === session.id);
 
-          return (
-            <div
-              key={session.id}
-              className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs"
-            >
-              {/* Session Header Bar */}
-              <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">
-                    {session.id}
-                  </span>
-                  <div>
-                    <span className="font-bold text-xs sm:text-sm text-slate-900">
-                      {session.name}
+            return (
+              <div
+                key={session.id}
+                className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs"
+              >
+                {/* Session Header Bar */}
+                <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">
+                      {session.id}
                     </span>
-                    <span className="text-slate-400 text-xs ml-2 font-mono">
-                      <Clock className="w-3 h-3 inline mr-1 text-slate-400" />
-                      {session.time}
-                    </span>
+                    <div>
+                      <span className="font-bold text-xs sm:text-sm text-slate-900">
+                        {session.name}
+                      </span>
+                      <span className="text-slate-400 text-xs ml-2 font-mono">
+                        <Clock className="w-3 h-3 inline mr-1 text-slate-400" />
+                        {session.time}
+                      </span>
+                    </div>
                   </div>
+
+                  {canEdit && (
+                    <button
+                      onClick={() => handleOpenAdd(selectedDay, session.id)}
+                      className="flex items-center space-x-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1 px-2.5 rounded-lg hover:bg-indigo-50 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Tambah Kelas</span>
+                    </button>
+                  )}
                 </div>
 
-                {canEdit && (
-                  <button
-                    onClick={() => handleOpenAdd(selectedDay, session.id)}
-                    className="flex items-center space-x-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1 px-2.5 rounded-lg hover:bg-indigo-50 transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Tambah Kelas</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Schedules within this session */}
-              <div className="p-3 sm:p-4">
-                {sessionSchedules.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {sessionSchedules.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-indigo-200 transition-all flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between">
-                            <span
-                              className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
-                                item.bimbelType === 'Kelompok'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : item.bimbelType === 'Privat 3'
-                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                  : item.bimbelType === 'Privat 1'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-rose-50 text-rose-700 border-rose-200'
-                              }`}
-                            >
-                              {item.bimbelType}
-                            </span>
-                          </div>
-
-                          <div className="mt-2.5">
-                            <p className="text-xs text-slate-500 font-medium">Guru Pengajar:</p>
-                            <p className="font-bold text-slate-800 text-sm">{item.tutorName}</p>
-                          </div>
-
-                          <div className="mt-2.5">
-                            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                              <span>Daftar Siswa ({item.studentNames.length} anak):</span>
-                              <span className="text-[10px] font-mono">
-                                Maks {getMaxStudents(item.bimbelType)} anak
+                {/* Schedules within this session */}
+                <div className="p-3 sm:p-4">
+                  {sessionSchedules.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {sessionSchedules.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-indigo-200 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between">
+                              <span
+                                className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${
+                                  item.bimbelType === 'Kelompok'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : item.bimbelType === 'Privat 3'
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : item.bimbelType === 'Privat 1'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
+                              >
+                                {item.bimbelType}
                               </span>
                             </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {item.studentNames.map((name, idx) => (
-                                <span
-                                  key={idx}
-                                  className="text-[11px] bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 font-medium"
-                                >
-                                  {name}
+
+                            <div className="mt-2.5">
+                              <p className="text-xs text-slate-500 font-medium">Guru Pengajar:</p>
+                              <p className="font-bold text-slate-800 text-sm">{item.tutorName}</p>
+                            </div>
+
+                            <div className="mt-2.5">
+                              <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                                <span>Daftar Siswa ({item.studentNames.length} anak):</span>
+                                <span className="text-[10px] font-mono">
+                                  Maks {getMaxStudents(item.bimbelType)} anak
                                 </span>
-                              ))}
-                              {item.studentNames.length === 0 && (
-                                <span className="text-xs text-slate-400 italic">
-                                  Belum ada siswa dipilih
-                                </span>
-                              )}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {item.studentNames.map((name, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="text-[11px] bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 font-medium"
+                                  >
+                                    {name}
+                                  </span>
+                                ))}
+                                {item.studentNames.length === 0 && (
+                                  <span className="text-xs text-slate-400 italic">
+                                    Belum ada siswa dipilih
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {canEdit && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-end space-x-2">
+                          {canEdit && (
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => handleOpenEdit(item)}
+                                className="text-xs text-slate-600 hover:text-indigo-600 flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => setScheduleToDelete(item)}
+                                className="text-xs text-slate-400 hover:text-rose-600 flex items-center space-x-1 px-2 py-1 rounded hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center text-xs text-slate-400 bg-slate-50/40 rounded-xl border border-dashed border-slate-200">
+                      Belum ada kelas yang dijadwalkan pada {session.name} ({session.time})
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* View Mode: Baris-baris (Tabel Jadwal) */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Sesi & Jam Belajar</th>
+                  <th className="py-3.5 px-4">Jenis Bimbel</th>
+                  <th className="py-3.5 px-4">Guru / Tutor</th>
+                  <th className="py-3.5 px-4">Siswa Terdaftar</th>
+                  <th className="py-3.5 px-4">Kapasitas</th>
+                  {canEdit && <th className="py-3.5 px-4 text-right">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {filteredSchedules.map((item) => {
+                  const maxAllowed = getMaxStudents(item.bimbelType);
+                  const isFull = item.studentIds.length >= maxAllowed;
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="w-6 h-6 rounded-md bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                            {item.sessionId}
+                          </span>
+                          <div>
+                            <p className="font-bold text-slate-900">Sesi {item.sessionId}</p>
+                            <span className="text-[11px] font-mono text-slate-400">{item.sessionTime}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border ${
+                            item.bimbelType === 'Kelompok'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : item.bimbelType === 'Privat 3'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : item.bimbelType === 'Privat 1'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
+                        >
+                          {item.bimbelType}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-800">
+                        {item.tutorName}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap gap-1 max-w-[280px]">
+                          {item.studentNames.map((name, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-medium text-slate-800"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                          {item.studentNames.length === 0 && (
+                            <span className="text-slate-400 italic">Belum ada siswa</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isFull
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {item.studentIds.length}/{maxAllowed} Siswa
+                        </span>
+                      </td>
+                      {canEdit && (
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end space-x-1">
                             <button
                               onClick={() => handleOpenEdit(item)}
-                              className="text-xs text-slate-600 hover:text-indigo-600 flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-100"
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Edit Jadwal"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
-                              <span>Edit</span>
                             </button>
                             <button
                               onClick={() => setScheduleToDelete(item)}
-                              className="text-xs text-slate-400 hover:text-rose-600 flex items-center space-x-1 px-2 py-1 rounded hover:bg-rose-50"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              title="Hapus Jadwal"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>Hapus</span>
                             </button>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-4 text-center text-xs text-slate-400 bg-slate-50/40 rounded-xl border border-dashed border-slate-200">
-                    Belum ada kelas yang dijadwalkan pada {session.name} ({session.time})
-                  </div>
-                )}
-              </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredSchedules.length === 0 && (
+            <div className="py-12 text-center text-slate-400 text-xs">
+              <CalendarDays className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">Tidak ada jadwal pada hari {selectedDay}</p>
+              <p className="mt-0.5">Pilih hari lain atau klik 'Tambah Jadwal Baru'</p>
             </div>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Modal Add / Edit Schedule (Without Ruangan) */}
       {isModalOpen && (
