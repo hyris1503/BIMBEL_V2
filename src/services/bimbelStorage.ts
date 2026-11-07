@@ -8,6 +8,7 @@ import {
   StudentBill,
   Tutor,
   UserAccount,
+  StorageBucketFile,
 } from '../types/bimbel';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -864,7 +865,7 @@ export class BimbelService {
     const client = getSupabaseClient();
     if (client) {
       try {
-        await client.from('bimbel_settings').upsert({
+        const { error } = await client.from('bimbel_settings').upsert({
           id: 1,
           bimbel_name: settings.bimbelName,
           tagline: settings.tagline,
@@ -881,15 +882,21 @@ export class BimbelService {
           tutor_increment_per_student: settings.tutorIncrementPerStudent,
           sessions: settings.sessions,
         });
+
+        if (error) {
+          console.warn('Upsert bimbel_settings with full columns failed:', error.message);
+          throw error;
+        }
       } catch (e) {
-        // Fallback without newer columns if not yet migrated in Supabase
+        // Fallback preserving logo_url if table schema doesn't yet have all new columns
         try {
-          await client.from('bimbel_settings').upsert({
+          const { error: innerErr } = await client.from('bimbel_settings').upsert({
             id: 1,
             bimbel_name: settings.bimbelName,
             tagline: settings.tagline,
             address: settings.address,
             phone: settings.phone,
+            logo_url: settings.logoUrl || null,
             kelompok_price: settings.kelompokPrice,
             privat3_price: settings.privat3Price,
             privat1_price: settings.privat1Price,
@@ -897,6 +904,9 @@ export class BimbelService {
             tutor_base_rate: settings.tutorBaseRate,
             tutor_increment_per_student: settings.tutorIncrementPerStudent,
           });
+          if (innerErr) {
+            console.error('Supabase fallback save settings error:', innerErr);
+          }
         } catch (innerErr) {
           console.error('Supabase save settings error:', innerErr);
         }
@@ -919,6 +929,134 @@ export class BimbelService {
           // Table bimbel_sessions might not yet exist, fallback safely
         }
       }
+    }
+  }
+
+  // --- Supabase Storage Integration for Media & Logos ---
+
+  /**
+   * Mengunggah file logo langsung ke Supabase Storage bucket dan mengembalikan URL publik.
+   */
+  static async uploadLogoToSupabase(
+    file: File,
+    bucketName: string = 'bimbel-photos',
+    folder: string = 'logo'
+  ): Promise<{ success: boolean; publicUrl?: string; filePath?: string; error?: string }> {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { success: false, error: 'Koneksi Supabase belum terhubung.' };
+    }
+
+    try {
+      const cleanFolder = folder ? folder.replace(/^\/+|\/+$/g, '') : '';
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const cleanBaseName = file.name
+        .substring(0, file.name.lastIndexOf('.'))
+        .replace(/[^a-zA-Z0-9_-]/g, '_') || 'logo';
+      const uniqueFileName = `${cleanBaseName}-${Date.now()}.${fileExt}`;
+      const filePath = cleanFolder ? `${cleanFolder}/${uniqueFileName}` : uniqueFileName;
+
+      // Unggah ke bucket Supabase Storage
+      const { data, error } = await client.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+
+      if (error) {
+        console.error('Supabase Storage upload error:', error);
+        return { success: false, error: error.message };
+      }
+
+      // Ambil Public URL
+      const { data: urlData } = client.storage.from(bucketName).getPublicUrl(data?.path || filePath);
+      const publicUrl = urlData.publicUrl;
+
+      return {
+        success: true,
+        publicUrl,
+        filePath: data?.path || filePath,
+      };
+    } catch (err: any) {
+      console.error('Error in uploadLogoToSupabase:', err);
+      return { success: false, error: err?.message || 'Gagal mengunggah file ke Supabase Storage' };
+    }
+  }
+
+  /**
+   * Menampilkan daftar berkas dari bucket Supabase Storage untuk dipilih langsung oleh pengguna.
+   */
+  static async listSupabaseBucketFiles(
+    bucketName: string = 'bimbel-photos',
+    folder: string = ''
+  ): Promise<{ success: boolean; files: StorageBucketFile[]; folders: string[]; error?: string }> {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { success: false, files: [], folders: [], error: 'Koneksi Supabase belum terhubung.' };
+    }
+
+    try {
+      const cleanFolder = folder ? folder.replace(/^\/+|\/+$/g, '') : '';
+      const { data, error } = await client.storage
+        .from(bucketName)
+        .list(cleanFolder, {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'name', order: 'asc' },
+        });
+
+      if (error) {
+        console.error('Supabase Storage list error:', error);
+        return { success: false, files: [], folders: [], error: error.message };
+      }
+
+      const files: StorageBucketFile[] = [];
+      const folders: string[] = [];
+
+      if (data && Array.isArray(data)) {
+        for (const item of data) {
+          // Lewati file placeholder kosong
+          if (item.name === '.emptyFolderPlaceholder') continue;
+
+          // Periksa apakah item merupakan subdirektori/folder
+          const isFolder = item.id === null || item.metadata === null || !item.metadata;
+          if (isFolder) {
+            folders.push(item.name);
+            continue;
+          }
+
+          const fullPath = cleanFolder ? `${cleanFolder}/${item.name}` : item.name;
+          const { data: urlData } = client.storage.from(bucketName).getPublicUrl(fullPath);
+          const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(item.name);
+
+          files.push({
+            name: item.name,
+            folder: cleanFolder,
+            fullPath,
+            publicUrl: urlData.publicUrl,
+            size: (item.metadata as any)?.size || 0,
+            updatedAt: item.updated_at || item.created_at || undefined,
+            isImage,
+            isFolder: false,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        files,
+        folders,
+      };
+    } catch (err: any) {
+      console.error('Error in listSupabaseBucketFiles:', err);
+      return {
+        success: false,
+        files: [],
+        folders: [],
+        error: err?.message || 'Gagal membaca berkas dari Supabase Storage',
+      };
     }
   }
 

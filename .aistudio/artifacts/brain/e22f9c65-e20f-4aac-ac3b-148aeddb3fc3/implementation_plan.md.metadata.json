@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana dan implementasi integrasi logo dengan Supabase Storage selesai: unggah langsung ke bucket, pemilih berkas dari bucket, sinkronisasi tabel bimbel_settings, dan migrasi logo lokal 1-klik.",
+  "updatedAt":  "2026-11-07T17:13:19.649045573Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

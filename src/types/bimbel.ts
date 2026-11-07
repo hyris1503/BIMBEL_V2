@@ -154,3 +154,14 @@ export interface BimbelPricingSettings {
   maxStudentsKelompok: number;
   sessions: SessionConfig[];
 }
+
+export interface StorageBucketFile {
+  name: string;
+  folder: string;
+  fullPath: string;
+  publicUrl: string;
+  size?: number;
+  updatedAt?: string | null;
+  isImage: boolean;
+  isFolder?: boolean;
+}
