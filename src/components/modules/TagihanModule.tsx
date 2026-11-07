@@ -797,7 +797,7 @@ export const TagihanModule: React.FC<TagihanModuleProps> = ({
 
                 <div className="text-center">
                   <p className="text-[10px] text-slate-400">
-                    Bandung, {formatDateIndo(activeSlip.dueDate)}
+                    Malang, {formatDateIndo(activeSlip.dueDate)}
                   </p>
                   <div className="h-12 flex items-center justify-center">
                     <span className="text-[10px] uppercase font-bold text-emerald-600 border-2 border-emerald-500 rounded px-1.5 py-0.5 rotate-[-8deg]">
