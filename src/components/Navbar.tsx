@@ -63,17 +63,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   const badge = getRoleBadge(currentUser?.role);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Bimbel Brand - Clicking navigates to role home */}
           <div
             onClick={onLogoClick}
-            className="flex items-center space-x-3 cursor-pointer select-none group transition-transform active:scale-95"
+            className="flex items-center space-x-2 sm:space-x-3 cursor-pointer select-none group transition-transform active:scale-95 shrink min-w-0"
             title="Kembali ke Beranda"
           >
             {logoUrl ? (
-              <div className="w-10 h-10 rounded-xl bg-white p-1 border border-slate-200/80 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white p-1 border border-slate-200/80 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
                 <img
                   src={logoUrl}
                   alt={bimbelName || 'Logo Bimbel'}
@@ -81,15 +81,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               </div>
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:from-indigo-700 group-hover:to-blue-600 transition-all shrink-0">
-                <GraduationCap className="w-6 h-6" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-indigo-100 group-hover:from-indigo-700 group-hover:to-blue-600 transition-all shrink-0">
+                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             )}
             <div className="min-w-0">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <span
                   title={bimbelName || 'BimbelSmart'}
-                  className="font-bold text-slate-900 dark:text-white tracking-tight text-sm sm:text-base leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[180px] sm:max-w-[260px] md:max-w-xs"
+                  className="font-bold text-slate-900 dark:text-white tracking-tight text-xs sm:text-base leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[100px] xs:max-w-[150px] sm:max-w-[260px] md:max-w-xs"
                 >
                   {bimbelName || (
                     <>
@@ -108,15 +108,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Quick Actions & Authenticated User Info */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
             {/* Supabase status badge */}
             <button
               onClick={onOpenSupabaseModal}
               title="Koneksi Database Supabase"
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              className={`flex items-center space-x-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 supabaseConnected
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
@@ -132,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onToggleDarkMode}
               title={isDarkMode ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 transition-all shadow-2xs text-slate-700 active:scale-95"
+              className="flex items-center space-x-1 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-2xs text-slate-700 dark:text-slate-200 active:scale-95"
               aria-label="Toggle Theme"
             >
               {isDarkMode ? (
@@ -149,29 +149,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Authenticated User Display */}
-            <div className="flex items-center space-x-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+            <div
+              className="flex items-center space-x-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs"
+              title={currentUser?.name ? `${currentUser.name} (${badge.label})` : 'User'}
+            >
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs shrink-0">
                 {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
               </div>
               <div className="hidden sm:block text-left">
-                <div className="text-xs font-semibold text-slate-800 line-clamp-1 max-w-[200px] md:max-w-[260px]">
+                <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-1 max-w-[130px] md:max-w-[180px] lg:max-w-[240px]">
                   {currentUser?.name}
                 </div>
                 <div className="flex items-center space-x-1">
                   <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-                  <span className="text-[10px] text-slate-500">{badge.label}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{badge.label}</span>
                 </div>
               </div>
-
-              {/* Direct Logout Button */}
-              <button
-                onClick={onLogout}
-                title="Keluar dari Akun"
-                className="ml-1 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
+
+            {/* Tombol Logout - Terlihat Jelas & Berdiri Sendiri di Mode Mobile & Desktop */}
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Keluar dari Akun (Logout)"
+              aria-label="Logout"
+              className="flex items-center space-x-1 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 text-xs font-bold transition-all shadow-2xs shrink-0 active:scale-95"
+            >
+              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold">Keluar</span>
+            </button>
           </div>
         </div>
       </div>

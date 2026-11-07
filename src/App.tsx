@@ -240,11 +240,50 @@ export default function App() {
     setActiveTab(getDefaultTabForRole(user.role));
   };
 
-  const handleLogout = () => {
+  const handleLogout = (reasonMessage?: string) => {
     BimbelService.setActiveUser(null);
     setCurrentUser(null);
     setIsLoginModalOpen(true);
+    if (reasonMessage && typeof reasonMessage === 'string') {
+      alert(reasonMessage);
+    }
   };
+
+  // Auto-logout jika sesi login telah mencapai batas 3 jam
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkSession = () => {
+      if (BimbelService.isSessionExpired()) {
+        handleLogout('Sesi login Anda telah berakhir (melebihi 3 jam). Silakan login kembali untuk melanjutkan.');
+      }
+    };
+
+    // Pengecekan awal saat render/perubahan user
+    checkSession();
+
+    // Pengecekan berkala setiap 30 detik
+    const intervalId = setInterval(checkSession, 30000);
+
+    // Pengecekan saat tab aplikasi kembali dibuka/aktif
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkSession();
+      }
+    };
+    const handleWindowFocus = () => {
+      checkSession();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [currentUser]);
 
   // CRUD Handlers with Live Supabase sync
   const handleSaveStudent = (student: Student) => {

@@ -101,7 +101,10 @@ const KEYS = {
   SLIPS: 'bimbel_clean_slips_v2',
   SETTINGS: 'bimbel_clean_settings_v2',
   CURRENT_USER: 'bimbel_clean_active_user_v2',
+  SESSION_TIME: 'bimbel_clean_session_login_time_v2',
 };
+
+export const SESSION_DURATION_MS = 3 * 60 * 60 * 1000; // 3 Jam (10.800.000 ms)
 
 export function isUUID(str?: string): boolean {
   if (!str) return false;
@@ -1097,11 +1100,28 @@ export class BimbelService {
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   }
 
+  static SESSION_DURATION_MS = SESSION_DURATION_MS; // 3 Jam
+
   static getActiveUser(): UserAccount | null {
     const raw = localStorage.getItem(KEYS.CURRENT_USER);
     if (!raw) {
       return null;
     }
+
+    // Periksa batas masa berlaku session (3 jam)
+    const sessionTimeStr = localStorage.getItem(KEYS.SESSION_TIME);
+    if (sessionTimeStr) {
+      const loginTime = parseInt(sessionTimeStr, 10);
+      if (!isNaN(loginTime) && Date.now() - loginTime >= SESSION_DURATION_MS) {
+        // Sesi telah melebihi 3 jam, otomatis hapus sesi aktif
+        BimbelService.setActiveUser(null);
+        return null;
+      }
+    } else {
+      // Jika session waktu belum tersimpan pada session aktif yang ada, catat waktu sekarang
+      localStorage.setItem(KEYS.SESSION_TIME, Date.now().toString());
+    }
+
     try {
       return JSON.parse(raw);
     } catch {
@@ -1112,9 +1132,33 @@ export class BimbelService {
   static setActiveUser(user: UserAccount | null) {
     if (user) {
       localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
+      localStorage.setItem(KEYS.SESSION_TIME, Date.now().toString());
     } else {
       localStorage.removeItem(KEYS.CURRENT_USER);
+      localStorage.removeItem(KEYS.SESSION_TIME);
     }
+  }
+
+  static isSessionExpired(): boolean {
+    const rawUser = localStorage.getItem(KEYS.CURRENT_USER);
+    if (!rawUser) return true;
+
+    const sessionTimeStr = localStorage.getItem(KEYS.SESSION_TIME);
+    if (!sessionTimeStr) return false;
+
+    const loginTime = parseInt(sessionTimeStr, 10);
+    if (isNaN(loginTime)) return false;
+
+    return Date.now() - loginTime >= SESSION_DURATION_MS;
+  }
+
+  static getRemainingSessionTime(): number {
+    const sessionTimeStr = localStorage.getItem(KEYS.SESSION_TIME);
+    if (!sessionTimeStr) return 0;
+    const loginTime = parseInt(sessionTimeStr, 10);
+    if (isNaN(loginTime)) return 0;
+    const remaining = SESSION_DURATION_MS - (Date.now() - loginTime);
+    return Math.max(0, remaining);
   }
 
   static getStudents(): Student[] {
