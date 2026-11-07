@@ -129,10 +129,22 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   // All schedules belonging strictly to this tutor
   const tutorSchedules = schedules.filter((s) => s.tutorId === effectiveTutorId);
 
-  // Home Visit schedules & candidates
+  // Home Visit schedules for this tutor
   const homeVisitSchedules = tutorSchedules.filter((s) => s.bimbelType === 'Home Visit');
-  const homeVisitStudents = students.filter((s) => s.bimbelType === 'Home Visit');
-  const eligibleHomeVisitStudents = homeVisitStudents.length > 0 ? homeVisitStudents : students;
+  // Student IDs explicitly registered in this tutor's Home Visit schedules
+  const tutorHomeVisitStudentIds = Array.from(
+    new Set(homeVisitSchedules.flatMap((s) => s.studentIds || []))
+  );
+  const tutorHomeVisitStudents = students.filter((s) =>
+    tutorHomeVisitStudentIds.includes(s.id)
+  );
+
+  // Active Home Visit schedule if tutor has registered Home Visit schedules
+  const activeHomeVisitSchedule =
+    homeVisitSchedules.find((s) => s.id === selectedScheduleId) ||
+    homeVisitSchedules.find((s) => s.day === dayName && s.sessionId === formSessionId) ||
+    homeVisitSchedules.find((s) => s.day === dayName) ||
+    (homeVisitSchedules.length > 0 ? homeVisitSchedules[0] : null);
 
   // Schedules matching selected day and tutor
   const matchingSchedules = tutorSchedules.filter((s) => s.day === dayName);
@@ -149,13 +161,19 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
 
   const isHomeVisitMode = attendanceMode === 'home_visit';
 
-  // Active student for Home Visit mode
+  // Active student for Home Visit mode:
+  // ONLY resolved if tutor actually has Home Visit schedules!
+  // If tutor does NOT have any Home Visit schedule, strictly return null (no data).
   const activeHomeVisitStudent = isHomeVisitMode
-    ? (homeVisitStudentId
-        ? students.find((s) => s.id === homeVisitStudentId)
-        : (activeSchedule && activeSchedule.studentIds.length > 0
-            ? students.find((s) => s.id === activeSchedule.studentIds[0])
-            : eligibleHomeVisitStudents[0])) || null
+    ? homeVisitSchedules.length > 0
+      ? (homeVisitStudentId
+          ? tutorHomeVisitStudents.find((s) => s.id === homeVisitStudentId)
+          : null) ||
+        (activeHomeVisitSchedule && activeHomeVisitSchedule.studentIds.length > 0
+          ? students.find((s) => s.id === activeHomeVisitSchedule.studentIds[0])
+          : null) ||
+        (tutorHomeVisitStudents.length > 0 ? tutorHomeVisitStudents[0] : null)
+      : null
     : null;
 
   // Student IDs scheduled for this session
@@ -167,8 +185,21 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
   useEffect(() => {
     if (isHomeVisitMode) {
       setFormBimbelType('Home Visit');
-      if (activeHomeVisitStudent) {
+      if (homeVisitSchedules.length === 0) {
+        // Tutor does NOT have Home Visit schedule -> clear all student data
+        setSelectedScheduleId('');
+        setHomeVisitStudentId('');
+        setPresentStudentIds([]);
+        setAbsentStudentIds([]);
+      } else if (activeHomeVisitStudent) {
+        if (activeHomeVisitSchedule && selectedScheduleId !== activeHomeVisitSchedule.id) {
+          setSelectedScheduleId(activeHomeVisitSchedule.id);
+          setFormSessionId(activeHomeVisitSchedule.sessionId);
+        }
         setPresentStudentIds([activeHomeVisitStudent.id]);
+        setAbsentStudentIds([]);
+      } else {
+        setPresentStudentIds([]);
         setAbsentStudentIds([]);
       }
     } else if (activeSchedule) {
@@ -197,7 +228,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
       setPresentStudentIds([]);
       setAbsentStudentIds([]);
     }
-  }, [activeSchedule?.id, formDate, effectiveTutorId, attendanceMode, homeVisitStudentId]);
+  }, [activeSchedule?.id, activeHomeVisitSchedule?.id, formDate, effectiveTutorId, attendanceMode, homeVisitStudentId, homeVisitSchedules.length]);
 
   // Load students from schedule when clicked
   const handleSelectSchedule = (sched: ScheduleItem) => {
@@ -271,8 +302,8 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
     let finalAbsentIds = absentStudentIds;
 
     if (isHomeVisitMode) {
-      if (!activeHomeVisitStudent) {
-        setNotification('Pilih siswa untuk sesi Home Visit terlebih dahulu.');
+      if (homeVisitSchedules.length === 0 || !activeHomeVisitStudent) {
+        setNotification('Guru tidak memiliki jadwal Home Visit yang valid.');
         setTimeout(() => setNotification(null), 3000);
         return;
       }
@@ -453,10 +484,9 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                 setSelectedScheduleId('');
                 if (homeVisitSchedules.length > 0) {
                   handleSelectSchedule(homeVisitSchedules[0]);
-                } else if (eligibleHomeVisitStudents.length > 0) {
-                  const firstId = eligibleHomeVisitStudents[0].id;
-                  setHomeVisitStudentId(firstId);
-                  setPresentStudentIds([firstId]);
+                } else {
+                  setHomeVisitStudentId('');
+                  setPresentStudentIds([]);
                   setAbsentStudentIds([]);
                 }
               }}
@@ -488,7 +518,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               </p>
 
               {/* If tutor has registered Home Visit schedules */}
-              {homeVisitSchedules.length > 0 && (
+              {homeVisitSchedules.length > 0 ? (
                 <div className="pt-2 border-t border-emerald-200/60">
                   <p className="text-[11px] font-bold text-emerald-900 mb-1.5">
                     Pilih Dari Jadwal Home Visit Terdaftar:
@@ -520,6 +550,13 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
                       );
                     })}
                   </div>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-emerald-200/60 flex items-center space-x-2 text-amber-800 text-xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>{selectedTutor?.name}</strong> tidak memiliki jadwal Home Visit terdaftar.
+                  </span>
                 </div>
               )}
             </div>
@@ -659,45 +696,38 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               {attendanceMode === 'home_visit' && (
                 <div className="sm:col-span-2 pt-1 border-t border-slate-100">
                   <label className="block font-semibold text-slate-700 mb-1">
-                    PILIH SISWA YANG DIKUNJUNGI (HOME VISIT)
+                    SISWA YANG DIKUNJUNGI (HOME VISIT)
                   </label>
-                  <select
-                    value={activeHomeVisitStudent?.id || ''}
-                    onChange={(e) => {
-                      const sid = e.target.value;
-                      setHomeVisitStudentId(sid);
-                      setPresentStudentIds([sid]);
-                      setAbsentStudentIds([]);
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-emerald-500 outline-none"
-                  >
-                    {students.filter((s) => s.bimbelType === 'Home Visit').length > 0 && (
-                      <optgroup label="Siswa Terdaftar Home Visit">
-                        {students
-                          .filter((s) => s.bimbelType === 'Home Visit')
-                          .map((st) => (
-                            <option key={st.id} value={st.id}>
-                              {st.name} ({st.id}) - Kelas {st.grade}
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                    <optgroup
-                      label={
-                        students.filter((s) => s.bimbelType === 'Home Visit').length > 0
-                          ? 'Siswa Lainnya'
-                          : 'Daftar Siswa'
-                      }
+                  {tutorHomeVisitStudents.length > 0 ? (
+                    <select
+                      value={activeHomeVisitStudent?.id || ''}
+                      onChange={(e) => {
+                        const sid = e.target.value;
+                        setHomeVisitStudentId(sid);
+                        setPresentStudentIds([sid]);
+                        setAbsentStudentIds([]);
+                        const matchedSched = homeVisitSchedules.find((s) =>
+                          s.studentIds.includes(sid)
+                        );
+                        if (matchedSched) {
+                          setSelectedScheduleId(matchedSched.id);
+                          setFormSessionId(matchedSched.sessionId);
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium focus:border-emerald-500 outline-none"
                     >
-                      {students
-                        .filter((s) => s.bimbelType !== 'Home Visit')
-                        .map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} ({st.id}) - {st.bimbelType}
-                          </option>
-                        ))}
-                    </optgroup>
-                  </select>
+                      {tutorHomeVisitStudents.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name} ({st.id}) - Kelas {st.grade}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Tidak ada siswa yang terjadwal Home Visit untuk guru ini.</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -794,6 +824,23 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               </div>
             )}
 
+            {/* If Home Visit mode and guru has no Home Visit schedule */}
+            {attendanceMode === 'home_visit' && (homeVisitSchedules.length === 0 || scheduledStudents.length === 0) && (
+              <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 space-y-2">
+                <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Tidak ada siswa yang terjadwal
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {selectedTutor?.name} tidak memiliki jadwal Home Visit.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Scheduled Students List: Toggles Presence with 1-Tap */}
             {scheduledStudents.length > 0 && (
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -878,7 +925,7 @@ export const AbsensiModule: React.FC<AbsensiModuleProps> = ({
               type="submit"
               disabled={
                 attendanceMode === 'home_visit'
-                  ? !activeHomeVisitStudent || presentStudentIds.length === 0
+                  ? homeVisitSchedules.length === 0 || !activeHomeVisitStudent || presentStudentIds.length === 0
                   : !activeSchedule || scheduledStudents.length === 0
               }
               className={`w-full py-3 ${
